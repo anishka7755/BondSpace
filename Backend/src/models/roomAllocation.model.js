@@ -4,7 +4,7 @@ const roomAllocationSchema = new mongoose.Schema(
   {
     matchId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "ConnectionRequest", 
+      ref: "Match", 
       required: true,
       unique: true, 
     },

@@ -1,8 +1,8 @@
 import RoomAllocation from "../models/roomAllocation.model.js";
 import Room from "../models/room.model.js";
-import ConnectionRequest from "../models/connectionRequest.model.js";
+import Match from "../models/matchResult.model.js";
 
-// Helper: get max capacity for room type
+// Helper: determine max capacity based on room type
 const roomCapacity = (room) => (room.type === "Twin" ? 2 : 1);
 
 // Helper: check if room has available spots
@@ -10,34 +10,32 @@ const isRoomAvailable = (room) => room.occupants.length < roomCapacity(room);
 
 export const createRoomAllocation = async (matchId, session = null) => {
   try {
-    // Find existing allocation with optional session
+    // Check if allocation already exists for this match
     let allocation = session
       ? await RoomAllocation.findOne({ matchId }).session(session)
       : await RoomAllocation.findOne({ matchId });
 
     if (allocation) return allocation;
 
-    // Fetch connection request to get allocator info
-    const connectionRequest = session
-      ? await ConnectionRequest.findById(matchId).session(session)
-      : await ConnectionRequest.findById(matchId);
+    // Fetch the Match document (using the correct matchId)
+    const match = session
+      ? await Match.findById(matchId).session(session)
+      : await Match.findById(matchId);
 
-    if (!connectionRequest) {
-      throw new Error("Connection request not found");
-    }
+    if (!match) throw new Error("Match not found");
+
+    // Define allocatorUserId - e.g., pick user1 as the allocator by default
+    const allocatorUserId = match.user1Id;
 
     allocation = new RoomAllocation({
       matchId,
-      allocatorUserId: connectionRequest.senderUserId,
+      allocatorUserId,
       selectedRoomId: null,
       isConfirmed: false,
     });
 
-    if (session) {
-      await allocation.save({ session });
-    } else {
-      await allocation.save();
-    }
+    if (session) await allocation.save({ session });
+    else await allocation.save();
 
     return allocation;
   } catch (error) {
@@ -46,9 +44,7 @@ export const createRoomAllocation = async (matchId, session = null) => {
   }
 };
 
-/**
- * Get RoomAllocation by connection request id (matchId)
- */
+// Get allocation by matchId (the Match document's _id)
 export const getRoomAllocationByMatchId = async (req, res) => {
   try {
     const { matchId } = req.params;
@@ -57,9 +53,7 @@ export const getRoomAllocationByMatchId = async (req, res) => {
       .populate("selectedRoomId")
       .populate("allocatorUserId", "firstName lastName email");
 
-    if (!allocation) {
-      return res.status(404).json({ message: "Room allocation not found" });
-    }
+    if (!allocation) return res.status(404).json({ message: "Room allocation not found" });
 
     res.json(allocation);
   } catch (error) {
@@ -68,61 +62,54 @@ export const getRoomAllocationByMatchId = async (req, res) => {
   }
 };
 
-/**
- * Allocator selects a room for allocation and confirms it
- */
+// Allocator selects room and confirms allocation
 export const selectRoomForAllocation = async (req, res) => {
   try {
     const { matchId } = req.params;
     const { roomId } = req.body;
-    const userId = req.user._id || req.user.id;  
+    // userId of logged-in user
+    const userId = req.user._id || req.user.id;
 
+    // Fetch allocation by matchId 
     const allocation = await RoomAllocation.findOne({ matchId });
-    if (!allocation) {
-      return res.status(404).json({ message: "Room allocation not found" });
-    }
+    if (!allocation) return res.status(404).json({ message: "Room allocation not found" });
 
-    if (!allocation.allocatorUserId.equals(userId)) {
+    // Only allocator can select room
+    if (!allocation.allocatorUserId.equals(userId))
       return res.status(403).json({ message: "Not authorized to select room" });
-    }
 
-    if (allocation.isConfirmed) {
+    if (allocation.isConfirmed)
       return res.status(400).json({ message: "Room allocation already confirmed" });
-    }
 
+    // Check room availability
     const room = await Room.findById(roomId).populate("occupants");
-    if (!room) {
-      return res.status(404).json({ message: "Room not found" });
-    }
+    if (!room) return res.status(404).json({ message: "Room not found" });
 
-    if (!isRoomAvailable(room)) {
+    if (!isRoomAvailable(room))
       return res.status(400).json({ message: "Selected room is full" });
-    }
 
-    // Fetch connection request to get both users
-    const connectionRequest = await ConnectionRequest.findById(matchId);
-    if (!connectionRequest) {
-      return res.status(404).json({ message: "Connection request not found" });
-    }
-
-    // Update allocation document
+    // Update allocation with selected room and mark confirmed
     allocation.selectedRoomId = roomId;
     allocation.isConfirmed = true;
     await allocation.save();
 
-    // Add both users as occupants of the room if not already added
+    // Add both users (from Match document) as occupants to the room
+    // Fetch match to get involved users
+    const match = await Match.findById(matchId);
+    if (!match) return res.status(404).json({ message: "Match not found" });
+
     const occupantsToAdd = new Set([
-      connectionRequest.senderUserId.toString(),
-      connectionRequest.receiverUserId.toString(),
+      match.user1Id.toString(),
+      match.user2Id.toString(),
     ]);
 
-    occupantsToAdd.forEach((userIdStr) => {
-      if (!room.occupants.find((o) => o._id.toString() === userIdStr)) {
-        room.occupants.push(userIdStr);
+    occupantsToAdd.forEach((uid) => {
+      if (!room.occupants.find((o) => o.toString() === uid)) {
+        room.occupants.push(uid);
       }
     });
 
-    // Mark room occupied if capacity reached
+    // Mark room as occupied if full
     room.isOccupied = room.occupants.length >= roomCapacity(room);
     await room.save();
 
@@ -133,9 +120,7 @@ export const selectRoomForAllocation = async (req, res) => {
   }
 };
 
-/**
- * Chat feature placeholders
- */
+// Chat features placeholders
 export const getChatMessages = async (req, res) => {
   res.status(501).json({ message: "Chat feature not implemented yet" });
 };

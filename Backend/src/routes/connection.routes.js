@@ -193,13 +193,12 @@ router.post("/:requestId/respond", authMiddleware, async (req, res) => {
         { session }
       );
 
-      // Create Room Allocation with session for atomicity
-      await createRoomAllocation(requestId, session);
+      await createRoomAllocation(newMatch._id, session);
+
 
       await session.commitTransaction();
       session.endSession();
 
-      console.log(`Request ${requestId} accepted, match created ${newMatch._id}`);
 
       return res.json({ message: "Request accepted", match: newMatch });
     } else {

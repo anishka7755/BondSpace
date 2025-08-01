@@ -73,17 +73,14 @@ const io = new IOServer(server, {
 
 // Socket.IO connection handler
 io.on("connection", (socket) => {
-  console.log(`New client connected: ${socket.id}`);
 
   
   socket.on("joinRoom", (matchId) => {
     socket.join(matchId);
-    console.log(`Socket ${socket.id} joined room: ${matchId}`);
   });
 
   // Listen for a chat message sent by client
   socket.on("sendMessage", async (data) => {
-    console.log('RECEIVED ON SERVER', data);
     const { matchId, message, senderUserId, senderName } = data;
 
     if (!data.senderUserId) {
@@ -104,12 +101,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("roomSelected", async ({ matchId, roomId }) => {
-    console.log(`Room selected for match ${matchId}: room ${roomId}`);
     io.to(matchId).emit("roomSelected", { roomId });
   });
 
   socket.on("disconnect", () => {
-    console.log(`Client disconnected: ${socket.id}`);
   });
 });
 
