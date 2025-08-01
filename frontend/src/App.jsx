@@ -11,8 +11,21 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Profile from "./pages/Profile";
+import Messages from "./pages/Messages";
 import SurveyPage from "./pages/SurveyPage";
 import NotFound from "./pages/NotFound";
+import RoomAllocationPage from "./pages/RoomAllocationPage.jsx";
+import Moodboard from "./pages/MoodBoard"; // Adjust the path if filename differs
+
+import AdminLogin from "./admin/pages/AdminLogin";
+import AdminDashboard from "./admin/pages/AdminDashboard";
+import UserManagement from "./admin/pages/UserManagement";
+import RoomManagement from "./admin/pages/RoomManagement";
+import MatchManagement from "./admin/pages/MatchManagement";
+import AuditLog from "./admin/pages/AuditLog";
+
+import AdminProtectedRoute from "./admin/components/AdminProtectedRoute";
 
 import { getStoredUser, getToken } from "./utils/authHelpers";
 
@@ -71,7 +84,9 @@ function App() {
                 }
               />
 
-            
+              {/* Admin base redirect */}
+              <Route path="/admin" element={<Navigate to="/admin/admindashboard" replace />} />
+
               {/* Public routes */}
               <Route
                 path="/login"
@@ -99,8 +114,23 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
-              
+              <Route path="/room-allocation/:matchId" element={ <ProtectedRoute><RoomAllocationPage /></ProtectedRoute>} />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/messages"
+                element={
+                  <ProtectedRoute>
+                    <Messages />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/survey"
                 element={
@@ -110,8 +140,60 @@ function App() {
                 }
               />
 
+              {/* Moodboard route with dynamic matchId param, protected */}
+              <Route
+                path="/moodboard/:matchId"
+                element={
+                  <ProtectedRoute>
+                    <Moodboard />
+                  </ProtectedRoute>
+                }
+              />
 
-      
+              {/* Admin routes */}
+              <Route path="/admin/login" element={<AdminLogin />} />
+
+              <Route
+                path="/admin/admindashboard"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminDashboard />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminProtectedRoute>
+                    <UserManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/rooms"
+                element={
+                  <AdminProtectedRoute>
+                    <RoomManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/matches"
+                element={
+                  <AdminProtectedRoute>
+                    <MatchManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <AdminProtectedRoute>
+                    <AuditLog />
+                  </AdminProtectedRoute>
+                }
+              />
+
               {/* 404 catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
