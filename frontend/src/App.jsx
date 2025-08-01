@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import SurveyPage from "./pages/SurveyPage";
 import NotFound from "./pages/NotFound";
 
+
 import { getStoredUser, getToken } from "./utils/authHelpers";
 
 const queryClient = new QueryClient();
@@ -49,11 +50,7 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="light"
-        enableSystem={false}
-      >
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -74,6 +71,8 @@ function App() {
                   )
                 }
               />
+
+              
 
               {/* Public routes */}
               <Route
@@ -102,7 +101,8 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-
+              
+              
               <Route
                 path="/survey"
                 element={
@@ -111,6 +111,8 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              
 
               {/* 404 catch all */}
               <Route path="*" element={<NotFound />} />

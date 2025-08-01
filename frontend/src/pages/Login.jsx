@@ -125,7 +125,17 @@ export default function Login() {
               >
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
-              //add button here to go to admin login
+
+              <Button
+                type="button"
+                className="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 shadow-sm"
+                onClick={() => {
+                  navigate("/admin/login");
+                }}
+              >
+                Log in as admin
+              </Button>
+
               <div className="text-center text-sm text-gray-600 dark:text-gray-200">
                 Don't have an account?{" "}
                 <Link
