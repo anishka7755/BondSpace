@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Heart,
-  MessageCircle,
+  MessageCircle, // Corrected icon import
   Plus,
   Image as ImageIcon,
   Music,
@@ -21,6 +21,7 @@ import {
   Type,
   Palette,
   Users,
+  Bookmark,
   MoreHorizontal,
 } from "lucide-react";
 import api from "../api/api";
@@ -39,27 +40,25 @@ const Moodboard = () => {
   const [newItemType, setNewItemType] = useState(null);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
-  const [newNoteDesc, setNewNoteDesc] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
   // Menu control state
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
-  // Fetch moodboard data
   useEffect(() => {
     async function fetchMoodboard() {
       setLoading(true);
       setError(null);
       try {
         const response = await api.get(`/moodboard/${matchId}`);
-        const { moodboard, items, comments, currentUserId } = response.data;
+        const { moodboard, items, comments } = response.data;
 
         const roomies = moodboard.users.map((u) => ({
           _id: u._id,
           firstName: u.firstName,
           lastName: u.lastName,
           email: u.email,
-          isYou: u._id === currentUserId,
+          isYou: u._id === response.data.currentUserId,
         }));
         setRoommates(roomies);
 
@@ -70,11 +69,12 @@ const Moodboard = () => {
             title: item.title || "",
             content: item.content,
             description: item.description || "",
-            image: item.image || null,
             author: item.owner.firstName + " " + item.owner.lastName,
             authorId: item.owner._id,
             likes: item.likes.length,
-            likedByUser: item.likes.some((id) => id === currentUserId),
+            likedByUser: item.likes.some(
+              (id) => id === response.data.currentUserId
+            ),
             timestamp: new Date(item.createdAt).toLocaleString(),
           }))
         );
@@ -115,19 +115,11 @@ const Moodboard = () => {
     }
   };
 
-  const startAddingItem = (type) => {
-    setNewItemType(type);
-    setNewNoteTitle("");
-    setNewNoteContent("");
-    setNewNoteDesc("");
-    setSelectedImage(null);
-  };
-
+  const startAddingItem = (type) => setNewItemType(type);
   const cancelAdding = () => {
     setNewItemType(null);
     setNewNoteTitle("");
     setNewNoteContent("");
-    setNewNoteDesc("");
     setSelectedImage(null);
   };
 
@@ -142,7 +134,7 @@ const Moodboard = () => {
         title: newNoteTitle.trim(),
         content: newNoteContent.trim(),
       };
-      const response = await api.post(`/moodboard/${matchId}`, payload);
+      const response = await api.post(`/moodboard/${matchId}/item`, payload);
       const item = response.data;
       setMoodboardItems((items) => [
         {
@@ -151,14 +143,9 @@ const Moodboard = () => {
           title: item.title || "",
           content: item.content,
           description: item.description || "",
-          image: item.image || null,
-          author:
-            roommates.find((u) => u._id === item.owner)?.firstName +
-              " " +
-              roommates.find((u) => u._id === item.owner)?.lastName ||
-            "Uploader",
-          authorId: item.owner,
-          likes: item.likes?.length || 0,
+          author: item.owner.firstName + " " + item.owner.lastName,
+          authorId: item.owner._id,
+          likes: item.likes.length,
           likedByUser: false,
           timestamp: new Date(item.createdAt).toLocaleString(),
         },
@@ -213,49 +200,6 @@ const Moodboard = () => {
     }
   };
 
-  const handleAddLink = async () => {
-    if (!newNoteContent.trim()) {
-      alert("Please enter a URL");
-      return;
-    }
-
-    try {
-      const payload = {
-        type: "link",
-        title: newNoteTitle.trim(),
-        content: newNoteContent.trim(),
-        description: newNoteDesc.trim(),
-      };
-      const response = await api.post(`/moodboard/${matchId}`, payload);
-      const item = response.data;
-
-      setMoodboardItems((items) => [
-        {
-          id: item._id,
-          type: item.type,
-          title: item.title || "",
-          content: item.content,
-          description: item.description || "",
-          image: item.image || null,
-          author:
-            roommates.find((u) => u._id === item.owner)?.firstName +
-              " " +
-              roommates.find((u) => u._id === item.owner)?.lastName ||
-            "Uploader",
-          authorId: item.owner,
-          likes: item.likes?.length || 0,
-          likedByUser: false,
-          timestamp: new Date(item.createdAt).toLocaleString(),
-        },
-        ...items,
-      ]);
-      setCommentsByItem((c) => ({ ...c, [item._id]: [] }));
-      cancelAdding();
-    } catch (err) {
-      alert(err.response?.data?.message || err.message);
-    }
-  };
-
   const toggleLikeItem = async (itemId) => {
     try {
       const response = await api.post(`/moodboard/item/${itemId}/like`);
@@ -273,7 +217,7 @@ const Moodboard = () => {
   };
 
   const handleDeleteNote = async (itemId) => {
-    if (!window.confirm("Are you sure you want to delete this item?")) return;
+    if (!window.confirm("Are you sure you want to delete this note?")) return;
     try {
       await api.delete(`/moodboard/item/${itemId}`);
       setMoodboardItems((items) => items.filter((item) => item.id !== itemId));
@@ -284,7 +228,7 @@ const Moodboard = () => {
       });
       if (openMenuFor === itemId) setOpenMenuFor(null);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete item");
+      alert(err.response?.data?.message || "Failed to delete note");
     }
   };
 
@@ -401,36 +345,7 @@ const Moodboard = () => {
                 </>
               )}
 
-              {newItemType === "link" && (
-                <>
-                  <Input
-                    placeholder="Title (optional)"
-                    value={newNoteTitle}
-                    onChange={(e) => setNewNoteTitle(e.target.value)}
-                  />
-                  <Input
-                    type="url"
-                    placeholder="Paste a valid URL (https://...)"
-                    value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    className="my-2"
-                  />
-                  <Textarea
-                    placeholder="Description (optional)"
-                    rows={2}
-                    value={newNoteDesc}
-                    onChange={(e) => setNewNoteDesc(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddLink}>Add Link</Button>
-                    <Button variant="outline" onClick={cancelAdding}>
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {newItemType === "playlist" && (
+              {["link", "playlist"].includes(newItemType) && (
                 <p className="text-muted-foreground">Feature coming soon!</p>
               )}
             </div>
@@ -502,28 +417,14 @@ const Moodboard = () => {
                     <pre className="whitespace-pre-wrap">{item.content}</pre>
                   )}
                   {item.type === "link" && (
-                    <div>
-                      <a
-                        href={item.content}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-blue-600 underline break-all font-semibold"
-                      >
-                        {item.title || item.content}
-                      </a>
-                      {item.description && (
-                        <p className="text-sm text-muted-foreground">
-                          {item.description}
-                        </p>
-                      )}
-                      {item.image && (
-                        <img
-                          src={item.image}
-                          alt="Link preview"
-                          className="rounded-lg w-full max-h-48 object-cover mt-2"
-                        />
-                      )}
-                    </div>
+                    <a
+                      href={item.content}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 underline break-all"
+                    >
+                      {item.content}
+                    </a>
                   )}
                   {item.type === "playlist" && (
                     <div className="bg-secondary rounded p-3">

@@ -595,6 +595,13 @@ export default function DashboardPage() {
                   >
                     Go to Moodboard
                   </button>
+                  <button onClick={() => navigate(`/room-allocation/${match._id}`)} style={{
+                      backgroundColor: ORANGE, color: "white",
+                      border: "none", borderRadius: 6, padding: "6px 14px",
+                      fontWeight: "600", cursor: "pointer",
+                    }}>
+                      Allocate Room
+                    </button>
                 </div>
               );
             })}

@@ -8,7 +8,6 @@ import {
 import Match from "../models/matchResult.model.js";
 import multer from "multer";
 import cloudinary from "../utils/cloudinary.js"; // Your configured Cloudinary client
-import { getLinkPreview } from "link-preview-js";
 
 const router = express.Router();
 
@@ -65,8 +64,7 @@ router.get(
         .populate("author", "firstName lastName email")
         .sort({ createdAt: 1 });
 
-      // Include current user ID in response for frontend logic
-      res.json({ moodboard, items, comments, currentUserId: req.user.id });
+      res.json({ moodboard, items, comments });
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Failed to load moodboard data" });
@@ -74,8 +72,7 @@ router.get(
   }
 );
 
-// POST add new moodboard item (note, link, playlist)
-// Special handling for "link" type with link preview enrichment
+// POST add new moodboard item (note, link, playlist, image — except image has separate route)
 router.post(
   "/:matchId",
   authMiddleware,
@@ -88,70 +85,20 @@ router.post(
         .json({ message: "Invalid data for moodboard item" });
     }
 
-    if (type === "link") {
-      // Validate URL
-      try {
-        new URL(content);
-      } catch {
-        return res.status(400).json({ message: "Invalid URL for link item." });
-      }
+    try {
+      const newItem = await MoodboardItem.create({
+        moodboardId: req.moodboard._id,
+        type,
+        title,
+        content,
+        description,
+        owner: req.user.id,
+      });
 
-      // Try to fetch metadata from link
-      try {
-        const data = await getLinkPreview(content);
-
-        const enrichedTitle = title || data.title || "";
-        const enrichedDescription = description || data.description || "";
-        const enrichedImage =
-          data.images && data.images.length ? data.images[0] : undefined;
-
-        const linkItemData = {
-          moodboardId: req.moodboard._id,
-          type,
-          title: enrichedTitle,
-          content,
-          description: enrichedDescription,
-          owner: req.user.id,
-        };
-
-        if (enrichedImage) linkItemData.image = enrichedImage;
-
-        const newItem = await MoodboardItem.create(linkItemData);
-        return res.status(201).json(newItem);
-      } catch (fetchErr) {
-        console.error("Link preview fetch failed:", fetchErr);
-        // Save item without enrichment if metadata fetch fails
-        try {
-          const newItem = await MoodboardItem.create({
-            moodboardId: req.moodboard._id,
-            type,
-            title: title || "",
-            content,
-            description: description || "",
-            owner: req.user.id,
-          });
-          return res.status(201).json(newItem);
-        } catch (err) {
-          console.error(err);
-          return res.status(500).json({ message: "Failed to add link item" });
-        }
-      }
-    } else {
-      // Handle note and playlist as before
-      try {
-        const newItem = await MoodboardItem.create({
-          moodboardId: req.moodboard._id,
-          type,
-          title,
-          content,
-          description,
-          owner: req.user.id,
-        });
-        return res.status(201).json(newItem);
-      } catch (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Failed to add item" });
-      }
+      res.status(201).json(newItem);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to add item" });
     }
   }
 );
@@ -237,7 +184,7 @@ router.delete("/comment/:commentId", authMiddleware, async (req, res) => {
 
 // POST upload image to moodboard (handles multipart form data, uploads to Cloudinary)
 router.post(
-  "/:matchId/item/image",
+  "/:matchId/image",
   authMiddleware,
   requireMoodboardAccess,
   upload.single("image"),
@@ -260,6 +207,7 @@ router.post(
             }
           );
 
+          // Use createReadStream directly on streamifier, NOT call streamifier()
           streamifier.createReadStream(req.file.buffer).pipe(stream);
         });
       };

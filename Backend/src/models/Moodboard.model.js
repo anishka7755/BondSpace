@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+// Each MoodboardItem represents single post/card on the moodboard
+
 const MoodboardItemSchema = new mongoose.Schema({
   moodboardId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -16,9 +18,11 @@ const MoodboardItemSchema = new mongoose.Schema({
   description: { type: String }, // extra info for link or playlist
   owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  image: { type: String }, // for link preview images
+  image: { type: String }, // <-- Newly added field for link preview image URL
   createdAt: { type: Date, default: Date.now },
 });
+
+// Comments for each MoodboardItem
 
 const MoodboardCommentSchema = new mongoose.Schema({
   itemId: {
