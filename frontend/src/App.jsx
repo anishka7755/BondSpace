@@ -14,7 +14,6 @@ import Dashboard from "./pages/Dashboard";
 import SurveyPage from "./pages/SurveyPage";
 import NotFound from "./pages/NotFound";
 
-
 import { getStoredUser, getToken } from "./utils/authHelpers";
 
 const queryClient = new QueryClient();
@@ -72,8 +71,7 @@ function App() {
                 }
               />
 
-              
-
+            
               {/* Public routes */}
               <Route
                 path="/login"
@@ -112,8 +110,8 @@ function App() {
                 }
               />
 
-              
 
+      
               {/* 404 catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>
