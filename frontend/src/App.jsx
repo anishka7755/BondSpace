@@ -14,6 +14,15 @@ import Dashboard from "./pages/Dashboard";
 import SurveyPage from "./pages/SurveyPage";
 import NotFound from "./pages/NotFound";
 
+import AdminLogin from "./admin/pages/AdminLogin";
+import AdminDashboard from "./admin/pages/AdminDashboard";
+import UserManagement from "./admin/pages/UserManagement";
+import RoomManagement from "./admin/pages/RoomManagement";
+import MatchManagement from "./admin/pages/MatchManagement";
+import AuditLog from "./admin/pages/AuditLog";
+
+import AdminProtectedRoute from "./admin/components/AdminProtectedRoute";
+
 import { getStoredUser, getToken } from "./utils/authHelpers";
 
 const queryClient = new QueryClient();
@@ -49,7 +58,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem={false}
+      >
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -71,7 +84,12 @@ function App() {
                 }
               />
 
-            
+              {/* Admin base redirect */}
+              <Route
+                path="/admin"
+                element={<Navigate to="/admin/admindashboard" replace />}
+              />
+
               {/* Public routes */}
               <Route
                 path="/login"
@@ -99,8 +117,7 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              
-              
+
               <Route
                 path="/survey"
                 element={
@@ -110,8 +127,50 @@ function App() {
                 }
               />
 
+              {/* Admin routes */}
+              <Route path="/admin/login" element={<AdminLogin />} />
 
-      
+              <Route
+                path="/admin/admindashboard"
+                element={
+                  <AdminProtectedRoute>
+                    <AdminDashboard />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminProtectedRoute>
+                    <UserManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/rooms"
+                element={
+                  <AdminProtectedRoute>
+                    <RoomManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/matches"
+                element={
+                  <AdminProtectedRoute>
+                    <MatchManagement />
+                  </AdminProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <AdminProtectedRoute>
+                    <AuditLog />
+                  </AdminProtectedRoute>
+                }
+              />
+
               {/* 404 catch all */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -5,55 +5,52 @@ import User from '../models/user.model.js';
 const router = express.Router();
 
 /**
- * Compute compatibility score (out of 100) and reasons between two users.
- * @param {Object} a - Onboarding answers of userA
- * @param {Object} b - Onboarding answers of userB
+ * Compute compatibility score and reasons between two users
+ * @param {Object} a - onboarding answers of userA
+ * @param {Object} b - onboarding answers of userB
  * @returns {score: Number, reasons: String[]}
  */
 function computeCompatibilityScore(a, b) {
-  let rawScore = 0;
+  let score = 0;
   const reasons = [];
 
   // Cleanliness (scale 1-5)
   if ('cleanliness' in a && 'cleanliness' in b) {
     const diff = Math.abs(a.cleanliness - b.cleanliness);
     if (diff === 0) {
-      rawScore += 3;
+      score += 3;
       reasons.push('Both have the same cleanliness level.');
     } else if (diff === 1) {
-      rawScore += 1;
+      score += 1;
       reasons.push('Cleanliness levels are close.');
     }
   }
 
   // Sleep Schedule
   if (a.sleepSchedule && b.sleepSchedule && a.sleepSchedule === b.sleepSchedule) {
-    rawScore += 3;
+    score += 3;
     reasons.push('Both have the same sleep schedule.');
   }
 
   // Diet
   if (a.diet && b.diet && a.diet === b.diet) {
-    rawScore += 2;
+    score += 2;
     reasons.push('Both follow the same diet.');
   }
 
   // Noise Tolerance
   if (a.noiseTolerance && b.noiseTolerance && a.noiseTolerance === b.noiseTolerance) {
-    rawScore += 1;
+    score += 1;
     reasons.push('Both have the same noise tolerance level.');
   }
 
   // Goal
   if (a.goal && b.goal && a.goal === b.goal) {
-    rawScore += 1;
+    score += 1;
     reasons.push('Both share similar goals.');
   }
 
-  const maxScore = 10;
-  const scoreOutOf100 = Math.round((rawScore / maxScore) * 100);
-
-  return { score: scoreOutOf100, reasons };
+  return { score, reasons };
 }
 
 router.get('/', authMiddleware, async (req, res) => {
@@ -65,13 +62,13 @@ router.get('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Please complete onboarding survey first.' });
     }
 
-    // Fetch other users with completed onboarding, excluding current user
+    // Fetch all other users with completed onboarding excluding current user
     const otherUsers = await User.find({
       _id: { $ne: currentUser._id },
       'onboarding.status': 'completed',
     }).lean();
 
-    // Calculate score and reasons (score now out of 100)
+    // Calculate scores & reasons
     const matches = otherUsers.map(u => {
       const { score, reasons } = computeCompatibilityScore(currentUser.onboarding.answers, u.onboarding.answers);
       return {
