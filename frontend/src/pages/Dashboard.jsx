@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [processingRequests, setProcessingRequests] = useState({});
+const [rejectedUserIds, setRejectedUserIds] = useState(new Set());
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,57 +28,109 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   // Fetch dashboard data
-  useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const profileRes = await api.get("/user/profile");
-        setUser(profileRes.data);
+useEffect(() => {
+  async function fetchDashboard() {
+    try {
+      const profileRes = await api.get("/user/profile");
+      setUser(profileRes.data);
 
-        if (profileRes.data?.onboarding?.status === "completed") {
-          setSurvey(profileRes.data?.onboarding?.answers ?? {});
+      if (profileRes.data?.onboarding?.status === "completed") {
+        setSurvey(profileRes.data?.onboarding?.answers ?? {});
 
-          // Fetch both top matches, finalmatches and connection data in parallel
-          const [
-            matchRes,
-            finalMatchRes,
-            incomingRes,
-            acceptedRes,
-            notificationsRes,
-            pendingRes,
-          ] = await Promise.all([
-            api.get("/match"), // top matches candidate list
-            api.get("/finalmatch"), // accepted matches with matchedUser info
-            api.get("/connection-requests/incoming"),
-            api.get("/connection-requests/accepted"),
-            api.get("/connection-requests/notifications"),
-            api.get("/connection-requests/pending-sent"),
-          ]);
+        // Fetch all required data in parallel
+        const [
+          matchRes,
+          finalMatchRes,
+          incomingRes,
+          acceptedRes,
+          notificationsRes,
+          pendingRes,
+          rejectedRes,
+        ] = await Promise.all([
+          api.get("/match"), // top matches candidate list
+          api.get("/finalmatch"), // accepted matches with matchedUser info
+          api.get("/connection-requests/incoming"),
+          api.get("/connection-requests/accepted"),
+          api.get("/connection-requests/notifications"),
+          api.get("/connection-requests/pending-sent"),
+          api.get("/connection-requests/rejected"),
+        ]);
 
-          setMatches(matchRes.data || []);
-          setFinalMatches(finalMatchRes.data || []);
+        // Process rejected user IDs from rejected connections
+        const rejectedIds = new Set();
+        (rejectedRes.data || []).forEach((conn) => {
+          if (
+            String(conn.senderUserId._id || conn.senderUserId) ===
+            String(profileRes.data._id)
+          ) {
+            rejectedIds.add(String(conn.receiverUserId._id || conn.receiverUserId));
+          } else {
+            rejectedIds.add(String(conn.senderUserId._id || conn.senderUserId));
+          }
+        });
+        setRejectedUserIds(rejectedIds);
 
-          const filteredIncoming = (incomingRes.data || []).filter(
-            (req) => String(req.senderUserId._id || req.senderUserId) !== String(profileRes.data._id)
-          );
-          setIncomingRequests(filteredIncoming);
+        // Build a Set of userIds who are already matched with current user
+        const matchedUserIds = new Set(
+          finalMatchRes.data.map((m) => String(m.matchedUser._id))
+        );
 
-          setAcceptedConnections(acceptedRes.data || []);
-          setNotifications(notificationsRes.data || []);
+        // Optional: current user's number of matches
+        const currentUserMatchesCount = finalMatchRes.data.length;
 
-          setPendingRequests(
-            (pendingRes.data || []).map(
-              (req) => String(req.receiverUserId._id || req.receiverUserId)
-            )
-          );
-        }
-      } catch (err) {
-        setError("Failed to load: " + (err.response?.data?.message || err.message));
-      } finally {
-        setLoading(false);
+        // Filter matches accordingly
+// 1. Filter matches accordingly first (inside filter callback no other code)
+const filteredMatches = (matchRes.data || []).filter((match) => {
+  const targetUserId = match.userId || match._id || (match.user && match.user._id);
+  if (!targetUserId) return false;
+
+  const userIdStr = String(targetUserId);
+
+  if (matchedUserIds.has(userIdStr)) return false;
+  if (rejectedIds.has(userIdStr)) return false;
+  if (userIdStr === String(profileRes.data._id)) return false;
+
+  return true;
+});
+
+// 2. Sort by compatibilityScore descending
+const sortedMatches = filteredMatches.sort(
+  (a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0)
+);
+
+// 3. Limit top 3
+const topThreeMatches = sortedMatches.slice(0, 3);
+
+// 4. Set state with limited matches
+setMatches(topThreeMatches);
+
+
+        setFinalMatches(finalMatchRes.data || []);
+
+        const filteredIncoming = (incomingRes.data || []).filter(
+          (req) =>
+            String(req.senderUserId._id || req.senderUserId) !==
+            String(profileRes.data._id)
+        );
+        setIncomingRequests(filteredIncoming);
+
+        setAcceptedConnections(acceptedRes.data || []);
+        setNotifications(notificationsRes.data || []);
+
+        setPendingRequests(
+          (pendingRes.data || []).map(
+            (req) => String(req.receiverUserId._id || req.receiverUserId)
+          )
+        );
       }
+    } catch (err) {
+      setError("Failed to load: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
     }
-    fetchDashboard();
-  }, []);
+  }
+  fetchDashboard();
+}, []);
 
   // Get the user object that is "other" in a connection relative to current user
   const getOtherUser = (conn) => {
@@ -153,28 +206,43 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRespondRequest = async (requestId, accept) => {
-    setProcessingRequests((prev) => ({ ...prev, [requestId]: true }));
-    try {
-      const status = accept ? "accepted" : "rejected";
-      await api.post(`/connection-requests/${requestId}/respond`, { status });
+const handleRespondRequest = async (requestId, accept) => {
+  setProcessingRequests(prev => ({ ...prev, [requestId]: true }));
+  try {
+    const status = accept ? "accepted" : "rejected";
+    await api.post(`/connection-requests/${requestId}/respond`, { status });
 
-      setIncomingRequests((prev) => prev.filter((r) => r._id !== requestId));
-      if (accept) {
-        const acceptedRes = await api.get("/connection-requests/accepted");
-        setAcceptedConnections(acceptedRes.data || []);
-        alert("Connection accepted! Please use the 'Go to Moodboard' button to navigate.");
+    setIncomingRequests(prev => prev.filter((r) => r._id !== requestId));
+
+    if (accept) {
+      const acceptedRes = await api.get("/connection-requests/accepted");
+      setAcceptedConnections(acceptedRes.data || []);
+      alert("Connection accepted! Please use the 'Go to Moodboard' button to navigate.");
+    } else {
+      // On reject: remove rejected user from top matches immediately
+      // Find rejected user's ID; incomingRequests has senderUserId
+      const rejectedReq = incomingRequests.find(r => r._id === requestId);
+      if (rejectedReq) {
+        const rejectedUserId = String(rejectedReq.senderUserId._id || rejectedReq.senderUserId);
+        // Remove from matches list
+        setMatches(prev => prev.filter(m => {
+          const matchUserId = m.userId || m._id || (m.user && m.user._id);
+          return String(matchUserId) !== rejectedUserId;
+        }));
+        // Add rejectedUserId to rejectedUserIds Set locally to disable further connect attempts
+        setRejectedUserIds(prev => new Set(prev).add(rejectedUserId));
       }
-    } catch (error) {
-      alert(error.response?.data.message || "Failed to respond");
-    } finally {
-      setProcessingRequests((prev) => {
-        const copy = { ...prev };
-        delete copy[requestId];
-        return copy;
-      });
     }
-  };
+  } catch (error) {
+    alert(error.response?.data.message || "Failed to respond");
+  } finally {
+    setProcessingRequests(prev => {
+      const copy = { ...prev };
+      delete copy[requestId];
+      return copy;
+    });
+  }
+};
 
   if (loading)
     return (
@@ -656,108 +724,138 @@ export default function DashboardPage() {
               </p>
             )}
 
-            {matches.map((match) => {
-              // The /match data may have userId or _id; adjust accordingly
-              const targetUserId = match.userId || match._id || null;
-              if (!targetUserId || String(targetUserId) === String(user._id)) return null;
+         {matches.map((match) => {
+  // Get the unique user ID for this match
+  const targetUserId = match.userId || match._id || (match.user && match.user._id);
+  if (!targetUserId || String(targetUserId) === String(user._id)) return null;
 
-              const matchedConnection = getMatchedConnection(targetUserId);
-              const sent = pendingRequests.includes(targetUserId);
+  // Check if already matched
+  const matchedConnection = getMatchedConnection(targetUserId);
 
-              const firstName = match.firstName || (match.user && match.user.firstName) || "";
-              const lastName = match.lastName || (match.user && match.user.lastName) || "";
+  // Check if a request was sent and pending
+  const sent = pendingRequests.includes(targetUserId);
 
-              return (
-                <article
-                  key={targetUserId}
-                  style={{
-                    width: 220,
-                    backgroundColor: "#fff7ea",
-                    padding: 15,
-                    borderRadius: 10,
-                    boxShadow: "0 0 8px rgba(0, 0, 0, 0.03)",
-                    userSelect: "none",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: "50%",
-                      backgroundColor: ORANGE,
-                      color: "white",
-                      fontSize: 32,
-                      fontWeight: "800",
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginBottom: 15,
-                      userSelect: "none",
-                    }}
-                  >
-                    {getInitials(firstName, lastName)}
-                  </div>
-                  <h3 style={{ margin: 0, marginBottom: 10, color: "#ad6c02" }}>
-                    {firstName} {lastName}
-                  </h3>
-                  <p style={{ margin: 0, marginBottom: 12, fontWeight: "700", color: "#b47900" }}>
-                    Score: {match.score}
-                  </p>
-                  {match.reasons && (
-                    <ul
-                      style={{
-                        listStyle: "none",
-                        paddingLeft: 20,
-                        marginBottom: 20,
-                        fontSize: 14,
-                        color: "#7f5e00",
-                      }}
-                    >
-                      {match.reasons.map((r, i) => (
-                        <li key={i}>• {r}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {matchedConnection ? (
-                    <button
-                      onClick={() => navigate(`/moodboard/${matchedConnection._id}`)}
-                      style={{
-                        backgroundColor: "#4e9940",
-                        color: "white",
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "8px 16px",
-                        cursor: "pointer",
-                        fontWeight: "600",
-                        width: "100%",
-                      }}
-                    >
-                      Go to Moodboard
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => !sent && handleSendRequest(targetUserId)}
-                      disabled={sent}
-                      style={{
-                        backgroundColor: sent ? "#ccc" : ORANGE,
-                        color: "white",
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "8px 16px",
-                        cursor: sent ? "not-allowed" : "pointer",
-                        fontWeight: "600",
-                        width: "100%",
-                      }}
-                    >
-                      {sent ? "Request Sent" : "Connect"}
-                    </button>
-                  )}
-                </article>
-              );
-            })}
+  // Check if this user is in rejectedUserIds state (you must define this in your component state)
+  const isRejected = rejectedUserIds.has(String(targetUserId));
+
+  // Check if current user reached max accepted matches (2)
+  const currentUserMaxedOut = finalMatches.length >= 2;
+
+  // Determine if Connect button should be disabled
+  const disableConnect =
+    !!matchedConnection || sent || isRejected || currentUserMaxedOut;
+
+  // Get names safely
+  const firstName = match.firstName || (match.user && match.user.firstName) || "";
+  const lastName = match.lastName || (match.user && match.user.lastName) || "";
+
+  return (
+    <article
+      key={targetUserId}
+      style={{
+        width: 220,
+        backgroundColor: "#fff7ea",
+        padding: 15,
+        borderRadius: 10,
+        boxShadow: "0 0 8px rgba(0, 0, 0, 0.03)",
+        userSelect: "none",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 60,
+          height: 60,
+          borderRadius: "50%",
+          backgroundColor: ORANGE,
+          color: "white",
+          fontSize: 32,
+          fontWeight: "800",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 15,
+          userSelect: "none",
+        }}
+      >
+        {getInitials(firstName, lastName)}
+      </div>
+      <h3 style={{ margin: 0, marginBottom: 10, color: "#ad6c02" }}>
+        {firstName} {lastName}
+      </h3>
+     <p style={{ margin: 0, marginBottom: 12, fontWeight: "700", color: "#b47900" }}>
+  Score: {match.compatibilityScore}%
+</p>
+{match.compatibilityReasons && (
+  <ul
+    style={{
+      listStyle: "none",
+      paddingLeft: 20,
+      marginBottom: 20,
+      fontSize: 14,
+      color: "#7f5e00",
+    }}
+  >
+    {match.compatibilityReasons.map((r, i) => (
+      <li key={i}>• {r}</li>
+    ))}
+  </ul>
+)}
+
+
+      {matchedConnection ? (
+        <button
+          onClick={() => navigate(`/moodboard/${matchedConnection._id}`)}
+          style={{
+            backgroundColor: "#4e9940",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            padding: "8px 16px",
+            cursor: "pointer",
+            fontWeight: "600",
+            width: "100%",
+          }}
+        >
+          Go to Moodboard
+        </button>
+      ) : (
+        <button
+          onClick={() => !disableConnect && handleSendRequest(targetUserId)}
+          disabled={disableConnect}
+          style={{
+            backgroundColor: disableConnect ? "#ccc" : ORANGE,
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            padding: "8px 16px",
+            cursor: disableConnect ? "not-allowed" : "pointer",
+            fontWeight: "600",
+            width: "100%",
+          }}
+          title={
+            disableConnect
+              ? matchedConnection
+                ? "Already matched"
+                : sent
+                ? "Request already sent"
+                : isRejected
+                ? "You were rejected by this user"
+                : currentUserMaxedOut
+                ? "You have reached maximum matches"
+                : "Unavailable"
+              : "Send connection request"
+          }
+        >
+          {sent ? "Request Sent" : disableConnect ? "Unavailable" : "Connect"}
+        </button>
+      )}
+    </article>
+  );
+})}
+
           </div>
         </section>
       </div>
