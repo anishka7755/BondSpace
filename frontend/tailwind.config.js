@@ -1,150 +1,23 @@
-/** @type {import('tailwindcss').Config} */
-export default {
-  darkMode: ["class"],
-  content: [
-    "./src/**/*.{js,jsx,ts,tsx}", // Include all files in /src
-    "./public/index.html", // Optional: include HTML if needed
-  ],
-  prefix: "",
-  theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
-    },
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-        sidebar: {
-          DEFAULT: "hsl(var(--sidebar-background))",
-          foreground: "hsl(var(--sidebar-foreground))",
-          primary: "hsl(var(--sidebar-primary))",
-          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
-          accent: "hsl(var(--sidebar-accent))",
-          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
-          border: "hsl(var(--sidebar-border))",
-          ring: "hsl(var(--sidebar-ring))",
-        },
-        rose: {
-          50: "#fef9f5",
-          100: "#fef2ea",
-          200: "#fce2d1",
-          300: "#f9ccab",
-          400: "#f4ad7a",
-          500: "#ee8f4f",
-          600: "#e57739",
-          700: "#be5f2e",
-          800: "#984d2a",
-          900: "#7b4127",
-          950: "#432012",
-        },
-        lavender: {
-          50: "#fefaf7",
-          100: "#fdf4ee",
-          200: "#fbe6d7",
-          300: "#f7d1b5",
-          400: "#f2b488",
-          500: "#ec9559",
-          600: "#e07d3e",
-          700: "#bb6633",
-          800: "#95522e",
-          900: "#784428",
-          950: "#402213",
-        },
-        blush: {
-          50: "#fffaf8",
-          100: "#fef4f0",
-          200: "#fde7dd",
-          300: "#fbd4c4",
-          400: "#f7b89e",
-          500: "#f29b78",
-          600: "#eb7f56",
-          700: "#c56640",
-          800: "#9e5438",
-          900: "#804631",
-          950: "#452319",
-        },
-        sage: {
-          50: "#f6f7f6",
-          100: "#e3e7e3",
-          200: "#c7d0c7",
-          300: "#a3b2a3",
-          400: "#7d9080",
-          500: "#5e7363",
-          600: "#4a5c4f",
-          700: "#3d4a41",
-          800: "#333d36",
-          900: "#2c342e",
-          950: "#1a1f1c",
-        },
-        gold: {
-          50: "#fffbeb",
-          100: "#fef3c7",
-          200: "#fde68a",
-          300: "#fcd34d",
-          400: "#fbbf24",
-          500: "#f59e0b",
-          600: "#d97706",
-          700: "#b45309",
-          800: "#92400e",
-          900: "#78350f",
-          950: "#451a03",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export default defineConfig({
+  server: {
+    host: "localhost",
+    port: 5173, // or whatever you prefer
+  },
+  build: {
+    outDir: "dist",
+  },
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  plugins: [],
-};
+});
