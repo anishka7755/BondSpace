@@ -15,8 +15,6 @@ import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 import SurveyPage from "./pages/SurveyPage";
 import NotFound from "./pages/NotFound";
-import RoomAllocationPage from "./pages/RoomAllocationPage.jsx";
-import Moodboard from "./pages/MoodBoard"; // Adjust the path if filename differs
 
 import AdminLogin from "./admin/pages/AdminLogin";
 import AdminDashboard from "./admin/pages/AdminDashboard";
@@ -62,7 +60,11 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem={false}
+      >
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -85,7 +87,10 @@ function App() {
               />
 
               {/* Admin base redirect */}
-              <Route path="/admin" element={<Navigate to="/admin/admindashboard" replace />} />
+              <Route
+                path="/admin"
+                element={<Navigate to="/admin/admindashboard" replace />}
+              />
 
               {/* Public routes */}
               <Route
@@ -114,38 +119,12 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/room-allocation/:matchId" element={ <ProtectedRoute><RoomAllocationPage /></ProtectedRoute>} />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/messages"
-                element={
-                  <ProtectedRoute>
-                    <Messages />
-                  </ProtectedRoute>
-                }
-              />
+
               <Route
                 path="/survey"
                 element={
                   <ProtectedRoute>
                     <SurveyPage />
-                  </ProtectedRoute>
-                }
-              />
-
-              {/* Moodboard route with dynamic matchId param, protected */}
-              <Route
-                path="/moodboard/:matchId"
-                element={
-                  <ProtectedRoute>
-                    <Moodboard />
                   </ProtectedRoute>
                 }
               />
