@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Heart,
-  MessageCircle, // Corrected icon import
+  MessageCircle,
   Plus,
   Image as ImageIcon,
   Music,
@@ -21,7 +21,6 @@ import {
   Type,
   Palette,
   Users,
-  Bookmark,
   MoreHorizontal,
 } from "lucide-react";
 import api from "../api/api";
@@ -40,25 +39,27 @@ const Moodboard = () => {
   const [newItemType, setNewItemType] = useState(null);
   const [newNoteTitle, setNewNoteTitle] = useState("");
   const [newNoteContent, setNewNoteContent] = useState("");
+  const [newNoteDesc, setNewNoteDesc] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
   // Menu control state
   const [openMenuFor, setOpenMenuFor] = useState(null);
 
+  // Fetch moodboard data
   useEffect(() => {
     async function fetchMoodboard() {
       setLoading(true);
       setError(null);
       try {
         const response = await api.get(`/moodboard/${matchId}`);
-        const { moodboard, items, comments } = response.data;
+        const { moodboard, items, comments, currentUserId } = response.data;
 
         const roomies = moodboard.users.map((u) => ({
           _id: u._id,
           firstName: u.firstName,
           lastName: u.lastName,
           email: u.email,
-          isYou: u._id === response.data.currentUserId,
+          isYou: u._id === currentUserId,
         }));
         setRoommates(roomies);
 
@@ -69,12 +70,11 @@ const Moodboard = () => {
             title: item.title || "",
             content: item.content,
             description: item.description || "",
+            image: item.image || null,
             author: item.owner.firstName + " " + item.owner.lastName,
             authorId: item.owner._id,
             likes: item.likes.length,
-            likedByUser: item.likes.some(
-              (id) => id === response.data.currentUserId
-            ),
+            likedByUser: item.likes.some((id) => id === currentUserId),
             timestamp: new Date(item.createdAt).toLocaleString(),
           }))
         );
@@ -115,11 +115,19 @@ const Moodboard = () => {
     }
   };
 
-  const startAddingItem = (type) => setNewItemType(type);
+  const startAddingItem = (type) => {
+    setNewItemType(type);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setNewNoteDesc("");
+    setSelectedImage(null);
+  };
+
   const cancelAdding = () => {
     setNewItemType(null);
     setNewNoteTitle("");
     setNewNoteContent("");
+    setNewNoteDesc("");
     setSelectedImage(null);
   };
 
@@ -134,7 +142,7 @@ const Moodboard = () => {
         title: newNoteTitle.trim(),
         content: newNoteContent.trim(),
       };
-      const response = await api.post(`/moodboard/${matchId}/item`, payload);
+      const response = await api.post(`/moodboard/${matchId}`, payload);
       const item = response.data;
       setMoodboardItems((items) => [
         {
@@ -143,9 +151,14 @@ const Moodboard = () => {
           title: item.title || "",
           content: item.content,
           description: item.description || "",
-          author: item.owner.firstName + " " + item.owner.lastName,
-          authorId: item.owner._id,
-          likes: item.likes.length,
+          image: item.image || null,
+          author:
+            roommates.find((u) => u._id === item.owner)?.firstName +
+              " " +
+              roommates.find((u) => u._id === item.owner)?.lastName ||
+            "Uploader",
+          authorId: item.owner,
+          likes: item.likes?.length || 0,
           likedByUser: false,
           timestamp: new Date(item.createdAt).toLocaleString(),
         },
@@ -160,20 +173,67 @@ const Moodboard = () => {
 
   const handleImageSelected = (e) => setSelectedImage(e.target.files[0]);
 
-  const handleImageUpload = async () => {
-    if (!selectedImage) {
-      alert("Please select an image");
+const handleImageUpload = async () => {
+  if (!selectedImage) {
+    alert("Please select an image");
+    return;
+  }
+  try {
+    const formData = new FormData();
+    formData.append("image", selectedImage);
+
+    // Do NOT manually set the Content-Type header here!
+    const response = await api.post(`/moodboard/${matchId}/image`, formData);
+
+    const item = response.data;
+    // Get author name from roommates
+    const authorUser = roommates.find(u => String(u._id) === String(item.owner));
+    const author = authorUser
+      ? `${authorUser.firstName} ${authorUser.lastName}`
+      : "Uploader";
+
+    setMoodboardItems(items => [
+      {
+        id: item._id,
+        type: item.type,
+        title: item.title || "",
+        content: item.content,
+        description: item.description || "",
+        author,
+        authorId: item.owner,
+        likes: item.likes?.length || 0,
+        likedByUser: false,
+        timestamp: new Date(item.createdAt).toLocaleString(),
+      },
+      ...items,
+    ]);
+    setSelectedImage(null);
+    cancelAdding(); // Only call after a successful upload
+   
+  } catch (err) {
+    console.error("Image upload failed:", err);
+    alert(err.response?.data?.message || err.message || "Failed to upload image");
+    return; // Never run "success" code after error
+  }
+};
+
+
+  const handleAddLink = async () => {
+    if (!newNoteContent.trim()) {
+      alert("Please enter a URL");
       return;
     }
+
     try {
-      const formData = new FormData();
-      formData.append("image", selectedImage);
-      const response = await api.post(
-        `/moodboard/${matchId}/item/image`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      const payload = {
+        type: "link",
+        title: newNoteTitle.trim(),
+        content: newNoteContent.trim(),
+        description: newNoteDesc.trim(),
+      };
+      const response = await api.post(`/moodboard/${matchId}`, payload);
       const item = response.data;
+
       setMoodboardItems((items) => [
         {
           id: item._id,
@@ -181,6 +241,7 @@ const Moodboard = () => {
           title: item.title || "",
           content: item.content,
           description: item.description || "",
+          image: item.image || null,
           author:
             roommates.find((u) => u._id === item.owner)?.firstName +
               " " +
@@ -193,10 +254,10 @@ const Moodboard = () => {
         },
         ...items,
       ]);
+      setCommentsByItem((c) => ({ ...c, [item._id]: [] }));
       cancelAdding();
-      setSelectedImage(null);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to upload image");
+      alert(err.response?.data?.message || err.message);
     }
   };
 
@@ -217,7 +278,7 @@ const Moodboard = () => {
   };
 
   const handleDeleteNote = async (itemId) => {
-    if (!window.confirm("Are you sure you want to delete this note?")) return;
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
       await api.delete(`/moodboard/item/${itemId}`);
       setMoodboardItems((items) => items.filter((item) => item.id !== itemId));
@@ -228,7 +289,7 @@ const Moodboard = () => {
       });
       if (openMenuFor === itemId) setOpenMenuFor(null);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to delete note");
+      alert(err.response?.data?.message || "Failed to delete item");
     }
   };
 
@@ -345,7 +406,36 @@ const Moodboard = () => {
                 </>
               )}
 
-              {["link", "playlist"].includes(newItemType) && (
+              {newItemType === "link" && (
+                <>
+                  <Input
+                    placeholder="Title (optional)"
+                    value={newNoteTitle}
+                    onChange={(e) => setNewNoteTitle(e.target.value)}
+                  />
+                  <Input
+                    type="url"
+                    placeholder="Paste a valid URL (https://...)"
+                    value={newNoteContent}
+                    onChange={(e) => setNewNoteContent(e.target.value)}
+                    className="my-2"
+                  />
+                  <Textarea
+                    placeholder="Description (optional)"
+                    rows={2}
+                    value={newNoteDesc}
+                    onChange={(e) => setNewNoteDesc(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Button onClick={handleAddLink}>Add Link</Button>
+                    <Button variant="outline" onClick={cancelAdding}>
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {newItemType === "playlist" && (
                 <p className="text-muted-foreground">Feature coming soon!</p>
               )}
             </div>
@@ -417,14 +507,28 @@ const Moodboard = () => {
                     <pre className="whitespace-pre-wrap">{item.content}</pre>
                   )}
                   {item.type === "link" && (
-                    <a
-                      href={item.content}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 underline break-all"
-                    >
-                      {item.content}
-                    </a>
+                    <div>
+                      <a
+                        href={item.content}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 underline break-all font-semibold"
+                      >
+                        {item.title || item.content}
+                      </a>
+                      {item.description && (
+                        <p className="text-sm text-muted-foreground">
+                          {item.description}
+                        </p>
+                      )}
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt="Link preview"
+                          className="rounded-lg w-full max-h-48 object-cover mt-2"
+                        />
+                      )}
+                    </div>
                   )}
                   {item.type === "playlist" && (
                     <div className="bg-secondary rounded p-3">
@@ -480,3 +584,7 @@ const Moodboard = () => {
 };
 
 export default Moodboard;
+
+
+
+
