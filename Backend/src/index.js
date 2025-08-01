@@ -5,13 +5,14 @@ import mongoose from "mongoose";
 
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
+import surveyRoutes from "./routes/survey.routes.js";  
 dotenv.config();
 
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:5174",
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
@@ -23,6 +24,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/survey", surveyRoutes);
 
 // -------- Centralized Error Handling Middleware --------
 app.use((err, req, res, next) => {
