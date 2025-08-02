@@ -1,32 +1,32 @@
 import React, { useEffect, useState } from "react";
-import api from "../api/api"; // axios instance with baseURL and auth header set
+import api from "../api/api";
 import { useNavigate } from "react-router-dom";
+import backgroundImg from "../components/image.jpeg";
 
 const ORANGE = "#ff7300";
-const BG = "#fff6ef";
+const BG = "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)";
+const LIGHT_GREEN = "#e8f5e9";
+const GREEN = "#4caf50";
+const CARD_GRADIENT = "linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)";
+const ORANGE_GRADIENT = "linear-gradient(135deg, #ff7300 0%, #ff8c42 100%)";
+const GREEN_GRADIENT = "linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [survey, setSurvey] = useState(null);
 
-  // Top matches candidates from /match
   const [matches, setMatches] = useState([]);
-
-  // Accepted matches from /finalmatch, enriched with matchedUser info
   const [finalMatches, setFinalMatches] = useState([]);
-
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [acceptedConnections, setAcceptedConnections] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [processingRequests, setProcessingRequests] = useState({});
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
 
-  // Fetch dashboard data
   useEffect(() => {
     async function fetchDashboard() {
       try {
@@ -35,8 +35,6 @@ export default function DashboardPage() {
 
         if (profileRes.data?.onboarding?.status === "completed") {
           setSurvey(profileRes.data?.onboarding?.answers ?? {});
-
-          // Fetch both top matches, finalmatches and connection data in parallel
           const [
             matchRes,
             finalMatchRes,
@@ -45,33 +43,33 @@ export default function DashboardPage() {
             notificationsRes,
             pendingRes,
           ] = await Promise.all([
-            api.get("/match"), // top matches candidate list
-            api.get("/finalmatch"), // accepted matches with matchedUser info
+            api.get("/match"),
+            api.get("/finalmatch"),
             api.get("/connection-requests/incoming"),
             api.get("/connection-requests/accepted"),
             api.get("/connection-requests/notifications"),
             api.get("/connection-requests/pending-sent"),
           ]);
-
           setMatches(matchRes.data || []);
           setFinalMatches(finalMatchRes.data || []);
-
           const filteredIncoming = (incomingRes.data || []).filter(
-            (req) => String(req.senderUserId._id || req.senderUserId) !== String(profileRes.data._id)
+            (req) =>
+              String(req.senderUserId._id || req.senderUserId) !==
+              String(profileRes.data._id)
           );
           setIncomingRequests(filteredIncoming);
-
           setAcceptedConnections(acceptedRes.data || []);
           setNotifications(notificationsRes.data || []);
-
           setPendingRequests(
-            (pendingRes.data || []).map(
-              (req) => String(req.receiverUserId._id || req.receiverUserId)
+            (pendingRes.data || []).map((req) =>
+              String(req.receiverUserId._id || req.receiverUserId)
             )
           );
         }
       } catch (err) {
-        setError("Failed to load: " + (err.response?.data?.message || err.message));
+        setError(
+          "Failed to load: " + (err.response?.data?.message || err.message)
+        );
       } finally {
         setLoading(false);
       }
@@ -79,7 +77,6 @@ export default function DashboardPage() {
     fetchDashboard();
   }, []);
 
-  // Get the user object that is "other" in a connection relative to current user
   const getOtherUser = (conn) => {
     if (!user) return null;
     return String(conn.senderUserId._id) === String(user._id)
@@ -87,7 +84,6 @@ export default function DashboardPage() {
       : conn.senderUserId;
   };
 
-  // Returns accepted connection object for given userId (if any)
   const getMatchedConnection = (userId) => {
     if (!user) return null;
     return (
@@ -112,12 +108,11 @@ export default function DashboardPage() {
 
   const getInitials = (first, last) => {
     if (!first && !last) return "";
-    return (first?.[0] ?? "") + (last?.[0] ?? "");
+    return ((first?.[0] ?? "") + (last?.[0] ?? "")).toUpperCase();
   };
 
   const handleSendRequest = async (userId) => {
     if (pendingRequests.includes(userId)) return;
-
     try {
       await api.post("/connection-requests", { receiverUserId: userId });
       setPendingRequests((prev) => [...prev, userId]);
@@ -127,25 +122,23 @@ export default function DashboardPage() {
     }
   };
 
+  // Mark notification read
   const handleMarkNotificationRead = async (notifId) => {
     try {
       await api.post("/connection-requests/notifications/mark-read", {
         notificationIds: [notifId],
       });
-
       setNotifications((prev) => prev.filter((n) => n._id !== notifId));
-
       const [acceptedRes, notificationsRes, pendingRes] = await Promise.all([
         api.get("/connection-requests/accepted"),
         api.get("/connection-requests/notifications"),
         api.get("/connection-requests/pending-sent"),
       ]);
-
       setAcceptedConnections(acceptedRes.data || []);
       setNotifications(notificationsRes.data || []);
       setPendingRequests(
-        (pendingRes.data || []).map(
-          (req) => String(req.receiverUserId._id || req.receiverUserId)
+        (pendingRes.data || []).map((req) =>
+          String(req.receiverUserId._id || req.receiverUserId)
         )
       );
     } catch (error) {
@@ -158,12 +151,13 @@ export default function DashboardPage() {
     try {
       const status = accept ? "accepted" : "rejected";
       await api.post(`/connection-requests/${requestId}/respond`, { status });
-
       setIncomingRequests((prev) => prev.filter((r) => r._id !== requestId));
       if (accept) {
         const acceptedRes = await api.get("/connection-requests/accepted");
         setAcceptedConnections(acceptedRes.data || []);
-        alert("Connection accepted! Please use the 'Go to Moodboard' button to navigate.");
+        alert(
+          "Connection accepted! Please use the 'Go to Moodboard' button to navigate."
+        );
       }
     } catch (error) {
       alert(error.response?.data.message || "Failed to respond");
@@ -178,445 +172,486 @@ export default function DashboardPage() {
 
   if (loading)
     return (
-      <div style={{ color: ORANGE, padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: ORANGE,
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         Loading dashboard...
       </div>
     );
-
   if (error)
     return (
-      <div style={{ color: "red", padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: "#dc3545",
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         {error}
       </div>
     );
-
   if (!user)
     return (
-      <div style={{ color: "red", padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: "#dc3545",
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         Profile not found
       </div>
     );
-
   if (user?.onboarding?.status !== "completed")
     return (
       <div
         style={{
           minHeight: "100vh",
-          background: BG,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
+          width: "100vw",
           position: "relative",
-          padding: 20,
+          overflow: "hidden",
         }}
       >
-        <button
-          onClick={handleLogout}
-          style={{
-            position: "absolute",
-            top: 20,
-            right: 20,
-            backgroundColor: ORANGE,
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            padding: "10px 22px",
-            fontWeight: "bold",
-            cursor: "pointer",
-          }}
-          aria-label="Logout"
-          title="Logout"
-        >
-          Logout
-        </button>
-
-        <h1 style={{ color: ORANGE, fontWeight: "900", marginBottom: 18 }}>
-          Welcome, {user.firstName}
-        </h1>
-
+        {/* Blurred background image */}
         <div
           style={{
-            maxWidth: 480,
-            backgroundColor: "white",
-            padding: 32,
-            borderRadius: 10,
-            boxShadow: "0 0 10px rgba(255,115,0,0.3)",
-            borderLeft: `6px solid ${ORANGE}`,
-            textAlign: "center",
+            position: "fixed",
+            inset: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundImage: `url(${backgroundImg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            filter: "blur(2px)",
+            opacity: 0.6,
+            zIndex: 0,
+            pointerEvents: "none",
+          }}
+        ></div>
+
+        {/* Content above background */}
+        <div
+          style={{
+            position: "relative",
+            zIndex: 2,
+            minHeight: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
           }}
         >
-          <p style={{ fontSize: 18 }}>Please complete your survey to find matches.</p>
           <button
-            onClick={() => navigate("/survey")}
+            onClick={handleLogout}
             style={{
-              cursor: "pointer",
-              padding: "16px 40px",
-              fontSize: 20,
-              backgroundColor: ORANGE,
+              position: "absolute",
+              top: 20,
+              right: 20,
+              backgroundColor: "#dc3545",
               color: "white",
               border: "none",
-              borderRadius: 6,
+              borderRadius: 25,
+              padding: "12px 24px",
               fontWeight: "600",
-              marginTop: 20,
+              cursor: "pointer",
+              zIndex: 3,
+              fontSize: 14,
+            }}
+            aria-label="Logout"
+            title="Logout"
+          >
+            Logout
+          </button>
+          <h1
+            style={{
+              color: ORANGE,
+              fontWeight: "700",
+              marginBottom: 24,
+              fontSize: 32,
             }}
           >
-            Take Survey
-          </button>
+            Welcome, {user.firstName}!
+          </h1>
+          <div
+            style={{
+              maxWidth: 500,
+              backgroundColor: "white",
+              padding: 40,
+              borderRadius: 16,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+              textAlign: "center",
+            }}
+          >
+            <p style={{ fontSize: 18, marginBottom: 24, color: "#6c757d" }}>
+              Please complete your survey to find matches.
+            </p>
+            <button
+              onClick={() => navigate("/survey")}
+              style={{
+                cursor: "pointer",
+                padding: "16px 32px",
+                fontSize: 16,
+                backgroundColor: ORANGE,
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: "600",
+              }}
+            >
+              Take Survey
+            </button>
+          </div>
         </div>
       </div>
     );
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, position: "relative" }}>
-      {/* Logout button */}
-      <button
-        onClick={handleLogout}
+    <div style={{ minHeight: "100vh", background: BG, paddingBottom: 40 }}>
+      {/* Header with Welcome and Logout */}
+      <div
         style={{
-          position: "fixed",
-          top: 20,
-          right: 40,
-          zIndex: 99,
-          backgroundColor: ORANGE,
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-          padding: "10px 22px",
-          fontWeight: "bold",
-          cursor: "pointer",
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%)",
+          padding: "20px 0",
+          boxShadow: "0 4px 12px rgba(255,115,0,0.1)",
+          marginBottom: 32,
+          backdropFilter: "blur(10px)",
         }}
-        aria-label="Logout"
-        title="Logout"
       >
-        Logout
-      </button>
-
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "36px 0 60px" }}>
-        <h1 style={{ color: ORANGE }}>Welcome back, {user.firstName}!</h1>
-
-        {/* Notifications Panel */}
-        {notifications.length > 0 && (
-          <section
-            style={{
-              backgroundColor: "#fff9e6",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: `6px solid ${ORANGE}`,
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(255, 115, 0, 0.2)",
-            }}
-          >
-            <h2 style={{ color: ORANGE, marginBottom: 15 }}>Notifications</h2>
-
-            {notifications.map((notif) => (
-              <div
-                key={notif._id}
-                style={{
-                  backgroundColor: "white",
-                  padding: 12,
-                  borderRadius: 8,
-                  marginBottom: 10,
-                  boxShadow: "0 0 5px rgba(0,0,0,0.05)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>{notif.message}</div>
-                <button
-                  onClick={() => handleMarkNotificationRead(notif._id)}
-                  style={{
-                    backgroundColor: ORANGE,
-                    color: "white",
-                    border: "none",
-                    padding: "4px 10px",
-                    borderRadius: 5,
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Mark Read
-                </button>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {/* Profile + Preferences */}
         <div
           style={{
-            backgroundColor: "white",
-            borderRadius: 10,
-            boxShadow: "0 0 15px rgba(255,115,0,0.15)",
-            borderLeft: `6px solid ${ORANGE}`,
-            padding: 25,
-            marginBottom: 30,
+            maxWidth: 1000,
+            margin: "0 auto",
+            padding: "0 24px",
             display: "flex",
-            gap: 32,
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          <div style={{ minWidth: 160, textAlign: "center" }}>
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: "600",
+              color: "#343a40",
+              margin: 0,
+            }}
+          >
+            Welcome back, {user.firstName} {user.lastName}!
+          </h1>
+          <button
+            onClick={handleLogout}
+            style={{
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: 25,
+              padding: "10px 20px",
+              fontWeight: "600",
+              cursor: "pointer",
+              fontSize: 14,
+            }}
+            aria-label="Logout"
+            title="Logout"
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 24px" }}>
+        {/* Profile Card */}
+        <div
+          style={{
+            background: CARD_GRADIENT,
+            borderRadius: 16,
+            padding: 32,
+            marginBottom: 32,
+            boxShadow: "0 8px 32px rgba(255,115,0,0.15)",
+            border: "1px solid rgba(255,115,0,0.1)",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 24,
+          }}
+        >
+          <div
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: "50%",
+              background: ORANGE_GRADIENT,
+              color: "#fff",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              fontSize: 28,
+              fontWeight: "700",
+              flexShrink: 0,
+              boxShadow: "0 4px 16px rgba(255,115,0,0.3)",
+            }}
+          >
+            {getInitials(user.firstName, user.lastName)}
+          </div>
+          <div style={{ flex: 1 }}>
             <div
               style={{
-                width: 86,
-                height: 86,
-                borderRadius: "50%",
-                backgroundColor: ORANGE,
-                color: "white",
-                fontSize: 48,
-                fontWeight: "800",
-                lineHeight: "86px",
-                userSelect: "none",
-                margin: "0 auto 15px",
-              }}
-            >
-              {getInitials(user.firstName, user.lastName)}
-            </div>
-            <h3 style={{ margin: 0 }}>
-              {user.firstName} {user.lastName}
-            </h3>
-            <p style={{ margin: "10px 0", color: "#7f5e00" }}>{user.email}</p>
-            <button
-              onClick={() => navigate("/survey")}
-              style={{
-                backgroundColor: ORANGE,
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                padding: "8px 22px",
+                fontSize: 20,
                 fontWeight: "600",
-                cursor: "pointer",
-                marginTop: 12,
+                color: "#343a40",
+                marginBottom: 4,
               }}
             >
-              Edit Survey
-            </button>
-          </div>
-
-          <div>
-            <h3 style={{ color: ORANGE }}>Your Preferences</h3>
-            <ul
+              {user.firstName} {user.lastName}
+            </div>
+            <div
               style={{
-                listStyle: "none",
-                paddingLeft: 20,
-                color: "#7f5e00",
-                fontSize: 16,
+                color: "#6c757d",
+                fontSize: 14,
+                marginBottom: 20,
               }}
             >
-              <li>
-                <b>Cleanliness:</b> {survey.cleanliness}
-              </li>
-              <li>
-                <b>Sleep Schedule:</b> {survey.sleepSchedule}
-              </li>
-              <li>
-                <b>Diet:</b> {survey.diet}
-              </li>
-              <li>
-                <b>Noise Tolerance:</b> {survey.noiseTolerance}
-              </li>
-              <li>
-                <b>Goal:</b> {survey.goal}
-              </li>
-            </ul>
+              {user.email}
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <h3
+                style={{
+                  fontSize: 16,
+                  fontWeight: "600",
+                  color: "#495057",
+                  marginBottom: 12,
+                }}
+              >
+                Your Preferences
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: 16,
+                }}
+              >
+                <div>
+                  <span
+                    style={{ color: ORANGE, fontSize: 14, fontWeight: "600" }}
+                  >
+                    Cleanliness:
+                  </span>
+                  <span style={{ marginLeft: 8, color: "#495057" }}>
+                    {survey.cleanliness}
+                  </span>
+                </div>
+                <div>
+                  <span
+                    style={{ color: ORANGE, fontSize: 14, fontWeight: "600" }}
+                  >
+                    Diet:
+                  </span>
+                  <span style={{ marginLeft: 8, color: "#495057" }}>
+                    {survey.diet}
+                  </span>
+                </div>
+                <div>
+                  <span
+                    style={{ color: ORANGE, fontSize: 14, fontWeight: "600" }}
+                  >
+                    Sleep Schedule:
+                  </span>
+                  <span style={{ marginLeft: 8, color: "#495057" }}>
+                    {survey.sleepSchedule}
+                  </span>
+                </div>
+                <div>
+                  <span
+                    style={{ color: ORANGE, fontSize: 14, fontWeight: "600" }}
+                  >
+                    Noise Tolerance:
+                  </span>
+                  <span style={{ marginLeft: 8, color: "#495057" }}>
+                    {survey.noiseTolerance}
+                  </span>
+                </div>
+                <div>
+                  <span
+                    style={{ color: ORANGE, fontSize: 14, fontWeight: "600" }}
+                  >
+                    Goal:
+                  </span>
+                  <span style={{ marginLeft: 8, color: "#495057" }}>
+                    {survey.goal}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
+          <button
+            onClick={() => navigate("/survey")}
+            style={{
+              background: ORANGE_GRADIENT,
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              padding: "10px 20px",
+              fontWeight: "600",
+              fontSize: 14,
+              cursor: "pointer",
+              flexShrink: 0,
+              boxShadow: "0 4px 12px rgba(255,115,0,0.25)",
+            }}
+          >
+            Edit Survey
+          </button>
         </div>
 
-        {/* Incoming Connection Requests */}
-        {incomingRequests.length > 0 && (
-          <section
-            style={{
-              backgroundColor: "#f2fff1",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: "6px solid #72a842",
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(114,168,66,0.2)",
-            }}
-          >
-            <h2 style={{ color: "#4d7e1a", marginBottom: 15 }}>
-              Pending Connection Requests
-            </h2>
-
-            {incomingRequests.map((req) => {
-              const sender = req.senderUserId;
-              return (
-                <div
-                  key={req._id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    backgroundColor: "white",
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                    boxShadow: "0 0 5px rgba(0,0,0,0.05)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div
-                      style={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: "50%",
-                        backgroundColor: ORANGE,
-                        color: "white",
-                        fontWeight: "800",
-                        fontSize: 24,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        userSelect: "none",
-                      }}
-                    >
-                      {getInitials(sender.firstName, sender.lastName)}
-                    </div>
-                    <div>
-                      <div>
-                        <strong>
-                          {sender.firstName} {sender.lastName}
-                        </strong>
-                      </div>
-                      <div style={{ fontSize: 14, color: "#555" }}>{sender.email}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <button
-                      disabled={processingRequests[req._id]}
-                      onClick={() => handleRespondRequest(req._id, true)}
-                      style={{
-                        backgroundColor: ORANGE,
-                        color: "white",
-                        border: "none",
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        marginRight: 10,
-                        cursor: "pointer",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      disabled={processingRequests[req._id]}
-                      onClick={() => handleRespondRequest(req._id, false)}
-                      style={{
-                        backgroundColor: "#aaa",
-                        color: "black",
-                        border: "none",
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        cursor: "pointer",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-        )}
-
-        {/* Accepted Matches (from finalMatches) */}
+        {/* Your Matches */}
         {finalMatches.length > 0 && (
-          <section
+          <div
             style={{
-              backgroundColor: "#e1f3d1",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: "6px solid #4e9940",
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(78,153,64,0.2)",
+              background: "linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)",
+              borderRadius: 16,
+              padding: 24,
+              marginBottom: 32,
+              boxShadow: "0 8px 32px rgba(76,175,80,0.15)",
+              border: "1px solid rgba(76,175,80,0.2)",
             }}
           >
-            <h2 style={{ color: "#3a8127", marginBottom: 15 }}>Your Matches</h2>
-
+            <h2
+              style={{
+                fontSize: 18,
+                fontWeight: "600",
+                color: "#2e7d32",
+                marginBottom: 16,
+              }}
+            >
+              Your Matches
+            </h2>
             {finalMatches.map((match) => {
-              if (!match.matchedUser || String(match.matchedUser._id) === String(user._id))
+              if (
+                !match.matchedUser ||
+                String(match.matchedUser._id) === String(user._id)
+              )
                 return null;
-
               const other = match.matchedUser;
-
               return (
                 <div
                   key={match._id}
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    backgroundColor: "white",
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                    boxShadow: "0 0 5px rgba(0,0,0,0.05)",
+                    gap: 16,
+                    marginBottom: finalMatches.length > 1 ? 16 : 0,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div
-                      style={{
-                        width: 50,
-                        height: 50,
-                        borderRadius: "50%",
-                        backgroundColor: ORANGE,
-                        color: "white",
-                        fontWeight: "800",
-                        fontSize: 24,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        userSelect: "none",
-                      }}
-                    >
-                      {getInitials(other.firstName, other.lastName)}
-                    </div>
-                    <div>
-                      <div>
-                        <strong>
-                          {other.firstName} {other.lastName}
-                        </strong>
-                      </div>
-                      <div style={{ fontSize: 14, color: "#555" }}>{other.email}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => navigate(`/moodboard/${match._id}`)}
+                  <div
                     style={{
-                      backgroundColor: "#4e9940",
-                      color: "white",
-                      border: "none",
-                      padding: "6px 16px",
-                      borderRadius: 6,
-                      cursor: "pointer",
+                      width: 48,
+                      height: 48,
+                      borderRadius: "50%",
+                      background: ORANGE_GRADIENT,
+                      color: "#fff",
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      fontSize: 18,
                       fontWeight: "600",
+                      boxShadow: "0 3px 12px rgba(255,115,0,0.3)",
                     }}
                   >
-                    Go to Moodboard
-                  </button>
-                  <button onClick={() => navigate(`/room-allocation/${match._id}`)} style={{
-                      backgroundColor: ORANGE, color: "white",
-                      border: "none", borderRadius: 6, padding: "6px 14px",
-                      fontWeight: "600", cursor: "pointer",
-                    }}>
+                    {getInitials(other.firstName, other.lastName)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: "600",
+                        color: "#2e7d32",
+                        fontSize: 16,
+                      }}
+                    >
+                      {other.firstName} {other.lastName}
+                    </div>
+                    <div
+                      style={{
+                        color: "#4caf50",
+                        fontSize: 14,
+                      }}
+                    >
+                      {other.email}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <button
+                      onClick={() => {
+                        if (finalMatches[0])
+                          navigate(`/moodboard/${finalMatches[0]._id}`);
+                      }}
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(248,249,250,0.95) 100%)",
+                        color: GREEN,
+                        border: `2px solid ${GREEN}`,
+                        borderRadius: 8,
+                        padding: "8px 16px",
+                        fontWeight: "600",
+                        fontSize: 14,
+                        cursor: "pointer",
+                        boxShadow: "0 2px 8px rgba(76,175,80,0.2)",
+                      }}
+                    >
+                      Go to Moodboard
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (finalMatches[0])
+                          navigate(`/room-allocation/${finalMatches[0]._id}`);
+                      }}
+                      style={{
+                        background: ORANGE_GRADIENT,
+                        color: "white",
+                        border: "none",
+                        borderRadius: 8,
+                        padding: "8px 16px",
+                        fontWeight: "600",
+                        fontSize: 14,
+                        cursor: "pointer",
+                        boxShadow: "0 3px 12px rgba(255,115,0,0.3)",
+                      }}
+                    >
                       Allocate Room
                     </button>
+                  </div>
                 </div>
               );
             })}
-          </section>
+          </div>
         )}
 
-        {/* Top Roommate Matches (from matches) */}
-        <section
+        {/* Top Roommate Matches */}
+        <div
           style={{
-            backgroundColor: "white",
-            borderRadius: 10,
-            padding: 25,
-            boxShadow: `0 0 15px rgba(255, 115, 0, 0.15)`,
-            borderLeft: `6px solid ${ORANGE}`,
-            marginBottom: 30,
+            background: CARD_GRADIENT,
+            borderRadius: 16,
+            padding: 32,
+            boxShadow: "0 8px 32px rgba(255,115,0,0.1)",
+            border: "1px solid rgba(255,115,0,0.05)",
           }}
         >
           <div
@@ -624,115 +659,194 @@ export default function DashboardPage() {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 20,
+              marginBottom: 32,
             }}
           >
-            <h2 style={{ color: ORANGE }}>Top Roommate Matches</h2>
-            <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  }}
->
-  <h2 style={{ color: ORANGE }}>Find Roomates</h2>
-  {/* Removed Find Roommates button */}
-</div>
-
+            <h2
+              style={{
+                fontSize: 20,
+                fontWeight: "600",
+                color: "#343a40",
+                margin: 0,
+              }}
+            >
+              Top Roommate Matches
+            </h2>
+            <button
+              style={{
+                backgroundColor: "transparent",
+                color: ORANGE,
+                border: `2px solid ${ORANGE}`,
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontWeight: "600",
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+              onClick={() => {
+                // Find roommates action if required
+              }}
+            >
+              Take Survey
+            </button>
           </div>
 
           <div
             style={{
-              display: "flex",
-              gap: 20,
-              flexWrap: "wrap",
-              justifyContent: matches.length ? "flex-start" : "center",
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 24,
             }}
           >
             {matches.length === 0 && (
-              <p style={{ color: "#a46300", fontWeight: "bold" }}>
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  textAlign: "center",
+                  color: "#6c757d",
+                  fontSize: 16,
+                  padding: 40,
+                }}
+              >
                 No matches yet, please update your survey.
-              </p>
+              </div>
             )}
-
             {matches.map((match) => {
-              // The /match data may have userId or _id; adjust accordingly
               const targetUserId = match.userId || match._id || null;
-              if (!targetUserId || String(targetUserId) === String(user._id)) return null;
-
+              if (!targetUserId || String(targetUserId) === String(user._id))
+                return null;
               const matchedConnection = getMatchedConnection(targetUserId);
               const sent = pendingRequests.includes(targetUserId);
-
-              const firstName = match.firstName || (match.user && match.user.firstName) || "";
-              const lastName = match.lastName || (match.user && match.user.lastName) || "";
-
+              const firstName =
+                match.firstName || (match.user && match.user.firstName) || "";
+              const lastName =
+                match.lastName || (match.user && match.user.lastName) || "";
               return (
-                <article
+                <div
                   key={targetUserId}
                   style={{
-                    width: 220,
-                    backgroundColor: "#fff7ea",
-                    padding: 15,
-                    borderRadius: 10,
-                    boxShadow: "0 0 8px rgba(0, 0, 0, 0.03)",
-                    userSelect: "none",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
+                    background:
+                      "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)",
+                    border: "1px solid rgba(255,115,0,0.1)",
+                    borderRadius: 12,
+                    padding: 24,
+                    textAlign: "center",
+                    boxShadow: "0 4px 16px rgba(255,115,0,0.08)",
+                    transition: "all 0.3s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = "translateY(-4px)";
+                    e.target.style.boxShadow = "0 8px 32px rgba(255,115,0,0.2)";
+                    e.target.style.background =
+                      "linear-gradient(135deg, #ffffff 0%, #fff8f0 100%)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = "translateY(0)";
+                    e.target.style.boxShadow =
+                      "0 4px 16px rgba(255,115,0,0.08)";
+                    e.target.style.background =
+                      "linear-gradient(135deg, #ffffff 0%, #fafafa 100%)";
                   }}
                 >
                   <div
                     style={{
-                      width: 60,
-                      height: 60,
+                      width: 64,
+                      height: 64,
+                      background: ORANGE_GRADIENT,
+                      color: "#fff",
                       borderRadius: "50%",
-                      backgroundColor: ORANGE,
-                      color: "white",
-                      fontSize: 32,
-                      fontWeight: "800",
                       display: "flex",
-                      justifyContent: "center",
+                      fontWeight: "700",
+                      fontSize: 24,
                       alignItems: "center",
-                      marginBottom: 15,
-                      userSelect: "none",
+                      justifyContent: "center",
+                      margin: "0 auto 16px",
+                      boxShadow: "0 4px 16px rgba(255,115,0,0.3)",
                     }}
                   >
                     {getInitials(firstName, lastName)}
                   </div>
-                  <h3 style={{ margin: 0, marginBottom: 10, color: "#ad6c02" }}>
+
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "600",
+                      color: "#343a40",
+                      marginBottom: 8,
+                    }}
+                  >
                     {firstName} {lastName}
-                  </h3>
-                  <p style={{ margin: 0, marginBottom: 12, fontWeight: "700", color: "#b47900" }}>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "inline-block",
+                      background: "#fff3cd",
+                      border: "1px solid #ffeeba",
+                      borderRadius: 20,
+                      color: "#856404",
+                      fontWeight: "600",
+                      fontSize: 14,
+                      padding: "4px 12px",
+                      marginBottom: 16,
+                    }}
+                  >
                     Score: {match.score}
-                  </p>
+                  </div>
+
                   {match.reasons && (
-                    <ul
+                    <div
                       style={{
-                        listStyle: "none",
-                        paddingLeft: 20,
+                        textAlign: "left",
                         marginBottom: 20,
-                        fontSize: 14,
-                        color: "#7f5e00",
+                        background: "#f8f9fa",
+                        borderRadius: 8,
+                        padding: 16,
                       }}
                     >
-                      {match.reasons.map((r, i) => (
-                        <li key={i}>• {r}</li>
+                      {match.reasons.map((reason, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 8,
+                            marginBottom: i < match.reasons.length - 1 ? 8 : 0,
+                            fontSize: 14,
+                            color: "#495057",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: GREEN,
+                              fontWeight: "bold",
+                              flexShrink: 0,
+                            }}
+                          >
+                            •
+                          </span>
+                          <span>{reason}</span>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
+
                   {matchedConnection ? (
                     <button
-                      onClick={() => navigate(`/moodboard/${matchedConnection._id}`)}
+                      onClick={() =>
+                        navigate(`/moodboard/${matchedConnection._id}`)
+                      }
                       style={{
-                        backgroundColor: "#4e9940",
+                        backgroundColor: GREEN,
                         color: "white",
                         border: "none",
-                        borderRadius: 6,
-                        padding: "8px 16px",
-                        cursor: "pointer",
+                        borderRadius: 8,
                         fontWeight: "600",
+                        padding: "12px 0",
+                        fontSize: 14,
                         width: "100%",
+                        cursor: "pointer",
                       }}
                     >
                       Go to Moodboard
@@ -742,24 +856,26 @@ export default function DashboardPage() {
                       onClick={() => !sent && handleSendRequest(targetUserId)}
                       disabled={sent}
                       style={{
-                        backgroundColor: sent ? "#ccc" : ORANGE,
+                        backgroundColor: sent ? "#6c757d" : ORANGE,
                         color: "white",
                         border: "none",
-                        borderRadius: 6,
-                        padding: "8px 16px",
-                        cursor: sent ? "not-allowed" : "pointer",
+                        borderRadius: 8,
+                        padding: "12px 0",
                         fontWeight: "600",
+                        fontSize: 14,
                         width: "100%",
+                        cursor: sent ? "not-allowed" : "pointer",
+                        opacity: sent ? 0.7 : 1,
                       }}
                     >
                       {sent ? "Request Sent" : "Connect"}
                     </button>
                   )}
-                </article>
+                </div>
               );
             })}
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );
