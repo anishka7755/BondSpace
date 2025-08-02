@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import api from "../api/api"; // axios instance with baseURL and auth header set
 import { useNavigate } from "react-router-dom";
 
+
 const ORANGE = "#FF6B35";
 const BG = "#F8F9FA";
 const CARD_BG = "#FFFFFF";
@@ -9,6 +10,7 @@ const TEXT_PRIMARY = "#2C3E50";
 const TEXT_SECONDARY = "#7F8C8D";
 const SUCCESS_GREEN = "#27AE60";
 const LIGHT_GREEN_BG = "#E8F5E8";
+
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
@@ -26,6 +28,9 @@ export default function DashboardPage() {
   const [notifications, setNotifications] = useState([]);
   const [processingRequests, setProcessingRequests] = useState({});
   const [rejectedUserIds, setRejectedUserIds] = useState(new Set());
+
+  // New state: room allocations keyed by matchId
+  const [roomAllocations, setRoomAllocations] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,19 +114,16 @@ export default function DashboardPage() {
 
           // Set state with limited matches
           setMatches(topThreeMatches);
-
           setFinalMatches(finalMatchRes.data || []);
-
-          const filteredIncoming = (incomingRes.data || []).filter(
-            (req) =>
-              String(req.senderUserId._id || req.senderUserId) !==
-              String(profileRes.data._id)
+          setIncomingRequests(
+            (incomingRes.data || []).filter(
+              (req) =>
+                String(req.senderUserId._id || req.senderUserId) !==
+                String(profileRes.data._id)
+            )
           );
-          setIncomingRequests(filteredIncoming);
-
           setAcceptedConnections(acceptedRes.data || []);
           setNotifications(notificationsRes.data || []);
-
           setPendingRequests(
             (pendingRes.data || []).map((req) =>
               String(req.receiverUserId._id || req.receiverUserId)
@@ -138,6 +140,40 @@ export default function DashboardPage() {
     }
     fetchDashboard();
   }, []);
+
+  // New effect: fetch room allocations for accepted matches
+  useEffect(() => {
+    async function fetchRoomAllocations() {
+      if (!finalMatches.length) return;
+
+      try {
+        const allocationsPromises = finalMatches.map(async (match) => {
+          const res = await api.get(`/room-allocations/${match._id}`);
+          return { matchId: match._id, allocation: res.data };
+        });
+
+        const allocationsResults = await Promise.all(allocationsPromises);
+        const allocationsMap = {};
+        allocationsResults.forEach(({ matchId, allocation }) => {
+          allocationsMap[matchId] = allocation;
+        });
+
+        setRoomAllocations(allocationsMap);
+      } catch (error) {
+        console.error("Failed to fetch room allocations", error);
+      }
+    }
+    fetchRoomAllocations();
+  }, [finalMatches]);
+
+  // Compute whether current user already has a room allocated (in any final match)
+  const hasAllocatedRoom = React.useMemo(() => {
+    if (!user || !finalMatches.length) return false;
+    return finalMatches.some((match) => {
+      const allocation = roomAllocations[match._id];
+      return allocation?.selectedRoomId ? true : false;
+    });
+  }, [user, finalMatches, roomAllocations]);
 
   // Get the user object that is "other" in a connection relative to current user
   const getOtherUser = (conn) => {
@@ -177,6 +213,11 @@ export default function DashboardPage() {
 
   const handleSendRequest = async (userId) => {
     if (pendingRequests.includes(userId)) return;
+
+    if (hasAllocatedRoom) {
+      alert("You have already been allocated a room and cannot connect with others.");
+      return;
+    }
 
     try {
       await api.post("/connection-requests", { receiverUserId: userId });
@@ -599,8 +640,7 @@ export default function DashboardPage() {
                 {survey.sleepSchedule}
               </div>
               <div>
-                <strong style={{ color: TEXT_PRIMARY }}>Diet:</strong>{" "}
-                {survey.diet}
+                <strong style={{ color: TEXT_PRIMARY }}>Diet:</strong> {survey.diet}
               </div>
               <div>
                 <strong style={{ color: TEXT_PRIMARY }}>
@@ -609,8 +649,7 @@ export default function DashboardPage() {
                 {survey.noiseTolerance}
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <strong style={{ color: TEXT_PRIMARY }}>Goal:</strong>{" "}
-                {survey.goal}
+                <strong style={{ color: TEXT_PRIMARY }}>Goal:</strong> {survey.goal}
               </div>
             </div>
           </div>
@@ -768,6 +807,7 @@ export default function DashboardPage() {
                 return null;
 
               const other = match.matchedUser;
+              const allocation = roomAllocations[match._id];
 
               return (
                 <div
@@ -825,6 +865,22 @@ export default function DashboardPage() {
                       >
                         {other.email}
                       </div>
+
+                      {/* Allocated room info */}
+                      {allocation?.selectedRoomId ? (
+                        <p
+                          style={{
+                            marginTop: 6,
+                            color: ORANGE,
+                            fontWeight: "600",
+                            fontSize: "14px",
+                          }}
+                        >
+                          Allocated Room:{" "}
+                          {allocation.selectedRoomId.roomNumber} (
+                          {allocation.selectedRoomId.type})
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: "12px" }}>
@@ -843,21 +899,45 @@ export default function DashboardPage() {
                     >
                       Go to Moodboard
                     </button>
-                    <button
-                      onClick={() => navigate(`/room-allocation/${match._id}`)}
-                      style={{
-                        backgroundColor: ORANGE,
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "10px 20px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                    >
-                      Allocate Room
-                    </button>
+
+                    {allocation?.selectedRoomId || hasAllocatedRoom ? (
+                      <button
+                        disabled
+                        style={{
+                          backgroundColor: "#BDC3C7",
+                          color: "#666",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "10px 20px",
+                          fontWeight: "600",
+                          cursor: "not-allowed",
+                          fontSize: "14px",
+                        }}
+                        title={
+                          allocation?.selectedRoomId
+                            ? "Room already allocated"
+                            : "Cannot allocate - room already assigned"
+                        }
+                      >
+                        Allocate Room
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/room-allocation/${match._id}`)}
+                        style={{
+                          backgroundColor: ORANGE,
+                          color: "white",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "10px 20px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Allocate Room
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -939,11 +1019,14 @@ export default function DashboardPage() {
                 const sent = pendingRequests.includes(targetUserId);
                 const isRejected = rejectedUserIds.has(String(targetUserId));
                 const currentUserMaxedOut = finalMatches.length >= 2;
+
+                // Disable connect if allocated room exists for user or final matches
                 const disableConnect =
                   !!matchedConnection ||
                   sent ||
                   isRejected ||
-                  currentUserMaxedOut;
+                  currentUserMaxedOut ||
+                  hasAllocatedRoom;
 
                 const firstName =
                   match.firstName || (match.user && match.user.firstName) || "";
@@ -1011,6 +1094,8 @@ export default function DashboardPage() {
                           textAlign: "left",
                           marginBottom: "20px",
                           width: "100%",
+                          color: TEXT_SECONDARY,
+                          fontSize: "13px",
                         }}
                       >
                         {match.compatibilityReasons
@@ -1019,8 +1104,6 @@ export default function DashboardPage() {
                             <div
                               key={i}
                               style={{
-                                fontSize: "13px",
-                                color: TEXT_SECONDARY,
                                 marginBottom: "6px",
                                 display: "flex",
                                 alignItems: "flex-start",
@@ -1083,20 +1166,20 @@ export default function DashboardPage() {
                             ? matchedConnection
                               ? "Already matched"
                               : sent
-                                ? "Request already sent"
-                                : isRejected
-                                  ? "You were rejected by this user"
-                                  : currentUserMaxedOut
-                                    ? "You have reached maximum matches"
-                                    : "Unavailable"
+                              ? "Request already sent"
+                              : isRejected
+                              ? "You were rejected by this user"
+                              : currentUserMaxedOut
+                              ? "You have reached maximum matches"
+                              : "You have been allocated a room"
                             : "Send connection request"
                         }
                       >
                         {sent
                           ? "Request Sent"
                           : disableConnect
-                            ? "Unavailable"
-                            : "Connect"}
+                          ? "Unavailable"
+                          : "Connect"}
                       </button>
                     )}
                   </div>
