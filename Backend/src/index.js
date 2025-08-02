@@ -70,7 +70,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO server
 const io = new IOServer(server, {
   cors: {
-    origin: "http://localhost:5173", 
+    origin: allowedOrigin, 
     methods: ["GET", "POST"],
     credentials: true,
   },
