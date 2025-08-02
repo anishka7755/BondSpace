@@ -1,10 +1,14 @@
-
 import React, { useEffect, useState } from "react";
 import api from "../api/api"; // axios instance with baseURL and auth header set
 import { useNavigate } from "react-router-dom";
 
-const ORANGE = "#ff7300";
-const BG = "#fff6ef";
+const ORANGE = "#FF6B35";
+const BG = "#F8F9FA";
+const CARD_BG = "#FFFFFF";
+const TEXT_PRIMARY = "#2C3E50";
+const TEXT_SECONDARY = "#7F8C8D";
+const SUCCESS_GREEN = "#27AE60";
+const LIGHT_GREEN_BG = "#E8F5E8";
 
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
@@ -21,7 +25,7 @@ export default function DashboardPage() {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [processingRequests, setProcessingRequests] = useState({});
-const [rejectedUserIds, setRejectedUserIds] = useState(new Set());
+  const [rejectedUserIds, setRejectedUserIds] = useState(new Set());
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -29,109 +33,111 @@ const [rejectedUserIds, setRejectedUserIds] = useState(new Set());
   const navigate = useNavigate();
 
   // Fetch dashboard data
-useEffect(() => {
-  async function fetchDashboard() {
-    try {
-      const profileRes = await api.get("/user/profile");
-      setUser(profileRes.data);
+  useEffect(() => {
+    async function fetchDashboard() {
+      try {
+        const profileRes = await api.get("/user/profile");
+        setUser(profileRes.data);
 
-      if (profileRes.data?.onboarding?.status === "completed") {
-        setSurvey(profileRes.data?.onboarding?.answers ?? {});
+        if (profileRes.data?.onboarding?.status === "completed") {
+          setSurvey(profileRes.data?.onboarding?.answers ?? {});
 
-        // Fetch all required data in parallel
-        const [
-          matchRes,
-          finalMatchRes,
-          incomingRes,
-          acceptedRes,
-          notificationsRes,
-          pendingRes,
-          rejectedRes,
-        ] = await Promise.all([
-          api.get("/match"), // top matches candidate list
-          api.get("/finalmatch"), // accepted matches with matchedUser info
-          api.get("/connection-requests/incoming"),
-          api.get("/connection-requests/accepted"),
-          api.get("/connection-requests/notifications"),
-          api.get("/connection-requests/pending-sent"),
-          api.get("/connection-requests/rejected"),
-        ]);
+          // Fetch all required data in parallel
+          const [
+            matchRes,
+            finalMatchRes,
+            incomingRes,
+            acceptedRes,
+            notificationsRes,
+            pendingRes,
+            rejectedRes,
+          ] = await Promise.all([
+            api.get("/match"), // top matches candidate list
+            api.get("/finalmatch"), // accepted matches with matchedUser info
+            api.get("/connection-requests/incoming"),
+            api.get("/connection-requests/accepted"),
+            api.get("/connection-requests/notifications"),
+            api.get("/connection-requests/pending-sent"),
+            api.get("/connection-requests/rejected"),
+          ]);
 
-        // Process rejected user IDs from rejected connections
-        const rejectedIds = new Set();
-        (rejectedRes.data || []).forEach((conn) => {
-          if (
-            String(conn.senderUserId._id || conn.senderUserId) ===
-            String(profileRes.data._id)
-          ) {
-            rejectedIds.add(String(conn.receiverUserId._id || conn.receiverUserId));
-          } else {
-            rejectedIds.add(String(conn.senderUserId._id || conn.senderUserId));
-          }
-        });
-        setRejectedUserIds(rejectedIds);
+          // Process rejected user IDs from rejected connections
+          const rejectedIds = new Set();
+          (rejectedRes.data || []).forEach((conn) => {
+            if (
+              String(conn.senderUserId._id || conn.senderUserId) ===
+              String(profileRes.data._id)
+            ) {
+              rejectedIds.add(
+                String(conn.receiverUserId._id || conn.receiverUserId)
+              );
+            } else {
+              rejectedIds.add(
+                String(conn.senderUserId._id || conn.senderUserId)
+              );
+            }
+          });
+          setRejectedUserIds(rejectedIds);
 
-        // Build a Set of userIds who are already matched with current user
-        const matchedUserIds = new Set(
-          finalMatchRes.data.map((m) => String(m.matchedUser._id))
+          // Build a Set of userIds who are already matched with current user
+          const matchedUserIds = new Set(
+            finalMatchRes.data.map((m) => String(m.matchedUser._id))
+          );
+
+          // Filter matches accordingly first
+          const filteredMatches = (matchRes.data || []).filter((match) => {
+            const targetUserId =
+              match.userId || match._id || (match.user && match.user._id);
+            if (!targetUserId) return false;
+
+            const userIdStr = String(targetUserId);
+
+            if (matchedUserIds.has(userIdStr)) return false;
+            if (rejectedIds.has(userIdStr)) return false;
+            if (userIdStr === String(profileRes.data._id)) return false;
+
+            return true;
+          });
+
+          // Sort by compatibilityScore descending
+          const sortedMatches = filteredMatches.sort(
+            (a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0)
+          );
+
+          // Limit top 3
+          const topThreeMatches = sortedMatches.slice(0, 3);
+
+          // Set state with limited matches
+          setMatches(topThreeMatches);
+
+          setFinalMatches(finalMatchRes.data || []);
+
+          const filteredIncoming = (incomingRes.data || []).filter(
+            (req) =>
+              String(req.senderUserId._id || req.senderUserId) !==
+              String(profileRes.data._id)
+          );
+          setIncomingRequests(filteredIncoming);
+
+          setAcceptedConnections(acceptedRes.data || []);
+          setNotifications(notificationsRes.data || []);
+
+          setPendingRequests(
+            (pendingRes.data || []).map((req) =>
+              String(req.receiverUserId._id || req.receiverUserId)
+            )
+          );
+        }
+      } catch (err) {
+        setError(
+          "Failed to load: " + (err.response?.data?.message || err.message)
         );
-
-        // Optional: current user's number of matches
-        const currentUserMatchesCount = finalMatchRes.data.length;
-
-        // Filter matches accordingly
-// 1. Filter matches accordingly first (inside filter callback no other code)
-const filteredMatches = (matchRes.data || []).filter((match) => {
-  const targetUserId = match.userId || match._id || (match.user && match.user._id);
-  if (!targetUserId) return false;
-
-  const userIdStr = String(targetUserId);
-
-  if (matchedUserIds.has(userIdStr)) return false;
-  if (rejectedIds.has(userIdStr)) return false;
-  if (userIdStr === String(profileRes.data._id)) return false;
-
-  return true;
-});
-
-// 2. Sort by compatibilityScore descending
-const sortedMatches = filteredMatches.sort(
-  (a, b) => (b.compatibilityScore || 0) - (a.compatibilityScore || 0)
-);
-
-// 3. Limit top 3
-const topThreeMatches = sortedMatches.slice(0, 3);
-
-// 4. Set state with limited matches
-setMatches(topThreeMatches);
-
-
-        setFinalMatches(finalMatchRes.data || []);
-
-        const filteredIncoming = (incomingRes.data || []).filter(
-          (req) =>
-            String(req.senderUserId._id || req.senderUserId) !==
-            String(profileRes.data._id)
-        );
-        setIncomingRequests(filteredIncoming);
-
-        setAcceptedConnections(acceptedRes.data || []);
-        setNotifications(notificationsRes.data || []);
-
-        setPendingRequests(
-          (pendingRes.data || []).map(
-            (req) => String(req.receiverUserId._id || req.receiverUserId)
-          )
-        );
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError("Failed to load: " + (err.response?.data?.message || err.message));
-    } finally {
-      setLoading(false);
     }
-  }
-  fetchDashboard();
-}, []);
+    fetchDashboard();
+  }, []);
 
   // Get the user object that is "other" in a connection relative to current user
   const getOtherUser = (conn) => {
@@ -198,8 +204,8 @@ setMatches(topThreeMatches);
       setAcceptedConnections(acceptedRes.data || []);
       setNotifications(notificationsRes.data || []);
       setPendingRequests(
-        (pendingRes.data || []).map(
-          (req) => String(req.receiverUserId._id || req.receiverUserId)
+        (pendingRes.data || []).map((req) =>
+          String(req.receiverUserId._id || req.receiverUserId)
         )
       );
     } catch (error) {
@@ -207,127 +213,180 @@ setMatches(topThreeMatches);
     }
   };
 
-const handleRespondRequest = async (requestId, accept) => {
-  setProcessingRequests(prev => ({ ...prev, [requestId]: true }));
-  try {
-    const status = accept ? "accepted" : "rejected";
-    await api.post(`/connection-requests/${requestId}/respond`, { status });
+  const handleRespondRequest = async (requestId, accept) => {
+    setProcessingRequests((prev) => ({ ...prev, [requestId]: true }));
+    try {
+      const status = accept ? "accepted" : "rejected";
+      await api.post(`/connection-requests/${requestId}/respond`, { status });
 
-    setIncomingRequests(prev => prev.filter((r) => r._id !== requestId));
+      setIncomingRequests((prev) => prev.filter((r) => r._id !== requestId));
 
-    if (accept) {
-      const acceptedRes = await api.get("/connection-requests/accepted");
-      setAcceptedConnections(acceptedRes.data || []);
-      alert("Connection accepted! Please use the 'Go to Moodboard' button to navigate.");
-    } else {
-      // On reject: remove rejected user from top matches immediately
-      // Find rejected user's ID; incomingRequests has senderUserId
-      const rejectedReq = incomingRequests.find(r => r._id === requestId);
-      if (rejectedReq) {
-        const rejectedUserId = String(rejectedReq.senderUserId._id || rejectedReq.senderUserId);
-        // Remove from matches list
-        setMatches(prev => prev.filter(m => {
-          const matchUserId = m.userId || m._id || (m.user && m.user._id);
-          return String(matchUserId) !== rejectedUserId;
-        }));
-        // Add rejectedUserId to rejectedUserIds Set locally to disable further connect attempts
-        setRejectedUserIds(prev => new Set(prev).add(rejectedUserId));
+      if (accept) {
+        const acceptedRes = await api.get("/connection-requests/accepted");
+        setAcceptedConnections(acceptedRes.data || []);
+        alert(
+          "Connection accepted! Please use the 'Go to Moodboard' button to navigate."
+        );
+      } else {
+        // On reject: remove rejected user from top matches immediately
+        const rejectedReq = incomingRequests.find((r) => r._id === requestId);
+        if (rejectedReq) {
+          const rejectedUserId = String(
+            rejectedReq.senderUserId._id || rejectedReq.senderUserId
+          );
+          setMatches((prev) =>
+            prev.filter((m) => {
+              const matchUserId = m.userId || m._id || (m.user && m.user._id);
+              return String(matchUserId) !== rejectedUserId;
+            })
+          );
+          setRejectedUserIds((prev) => new Set(prev).add(rejectedUserId));
+        }
       }
+    } catch (error) {
+      alert(error.response?.data.message || "Failed to respond");
+    } finally {
+      setProcessingRequests((prev) => {
+        const copy = { ...prev };
+        delete copy[requestId];
+        return copy;
+      });
     }
-  } catch (error) {
-    alert(error.response?.data.message || "Failed to respond");
-  } finally {
-    setProcessingRequests(prev => {
-      const copy = { ...prev };
-      delete copy[requestId];
-      return copy;
-    });
-  }
-};
+  };
 
   if (loading)
     return (
-      <div style={{ color: ORANGE, padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: ORANGE,
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         Loading dashboard...
       </div>
     );
 
   if (error)
     return (
-      <div style={{ color: "red", padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: "#E74C3C",
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         {error}
       </div>
     );
 
   if (!user)
     return (
-      <div style={{ color: "red", padding: 20, fontWeight: "bold" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: BG,
+          color: "#E74C3C",
+          fontSize: 18,
+          fontWeight: "600",
+        }}
+      >
         Profile not found
       </div>
     );
 
   if (user?.onboarding?.status !== "completed")
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: BG,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          padding: 20,
-        }}
-      >
-        <button
-          onClick={handleLogout}
+      <div style={{ minHeight: "100vh", background: BG, padding: "20px" }}>
+        <div
           style={{
-            position: "absolute",
-            top: 20,
-            right: 20,
-            backgroundColor: ORANGE,
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            padding: "10px 22px",
-            fontWeight: "bold",
-            cursor: "pointer",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "40px",
           }}
-          aria-label="Logout"
-          title="Logout"
         >
-          Logout
-        </button>
-
-        <h1 style={{ color: ORANGE, fontWeight: "900", marginBottom: 18 }}>
-          Welcome, {user.firstName}
-        </h1>
+          <h1
+            style={{
+              color: TEXT_PRIMARY,
+              fontSize: "28px",
+              fontWeight: "700",
+              margin: 0,
+            }}
+          >
+            Welcome, {user.firstName}
+          </h1>
+          <button
+            onClick={handleLogout}
+            style={{
+              backgroundColor: "#E74C3C",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "12px 24px",
+              fontWeight: "600",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            Logout
+          </button>
+        </div>
 
         <div
           style={{
-            maxWidth: 480,
-            backgroundColor: "white",
-            padding: 32,
-            borderRadius: 10,
-            boxShadow: "0 0 10px rgba(255,115,0,0.3)",
-            borderLeft: `6px solid ${ORANGE}`,
+            maxWidth: "600px",
+            margin: "0 auto",
+            backgroundColor: CARD_BG,
+            padding: "40px",
+            borderRadius: "12px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
             textAlign: "center",
           }}
         >
-          <p style={{ fontSize: 18 }}>Please complete your survey to find matches.</p>
+          <h2
+            style={{
+              color: TEXT_PRIMARY,
+              marginBottom: "20px",
+              fontSize: "24px",
+              fontWeight: "600",
+            }}
+          >
+            Complete Your Profile
+          </h2>
+          <p
+            style={{
+              color: TEXT_SECONDARY,
+              fontSize: "16px",
+              marginBottom: "30px",
+            }}
+          >
+            Please complete your survey to find compatible roommates.
+          </p>
           <button
             onClick={() => navigate("/survey")}
             style={{
-              cursor: "pointer",
-              padding: "16px 40px",
-              fontSize: 20,
               backgroundColor: ORANGE,
               color: "white",
               border: "none",
-              borderRadius: 6,
+              borderRadius: "8px",
+              padding: "16px 32px",
+              fontSize: "16px",
               fontWeight: "600",
-              marginTop: 20,
+              cursor: "pointer",
             }}
           >
             Take Survey
@@ -337,173 +396,245 @@ const handleRespondRequest = async (requestId, accept) => {
     );
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, position: "relative" }}>
-      {/* Logout button */}
-      <button
-        onClick={handleLogout}
+    <div style={{ minHeight: "100vh", background: BG }}>
+      {/* Header */}
+      <div
         style={{
-          position: "fixed",
-          top: 20,
-          right: 40,
-          zIndex: 99,
-          backgroundColor: ORANGE,
-          color: "white",
-          border: "none",
-          borderRadius: 6,
-          padding: "10px 22px",
-          fontWeight: "bold",
-          cursor: "pointer",
+          backgroundColor: CARD_BG,
+          padding: "20px 40px",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+          marginBottom: "30px",
         }}
-        aria-label="Logout"
-        title="Logout"
       >
-        Logout
-      </button>
-
-      <div style={{ maxWidth: 920, margin: "0 auto", padding: "36px 0 60px" }}>
-        <h1 style={{ color: ORANGE }}>Welcome back, {user.firstName}!</h1>
-
-        {/* Notifications Panel */}
-        {notifications.length > 0 && (
-          <section
+        <div
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h1
             style={{
-              backgroundColor: "#fff9e6",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: `6px solid ${ORANGE}`,
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(255, 115, 0, 0.2)",
+              color: TEXT_PRIMARY,
+              fontSize: "28px",
+              fontWeight: "700",
+              margin: 0,
             }}
           >
-            <h2 style={{ color: ORANGE, marginBottom: 15 }}>Notifications</h2>
+            Welcome back, {user.firstName}!
+          </h1>
+          <button
+            onClick={handleLogout}
+            style={{
+              backgroundColor: "#E74C3C",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "12px 24px",
+              fontWeight: "600",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </div>
+
+      <div
+        style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 40px 60px" }}
+      >
+        {/* Notifications Panel */}
+        {notifications.length > 0 && (
+          <div
+            style={{
+              backgroundColor: "#FFF3CD",
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "30px",
+              border: "1px solid #FFEAA7",
+            }}
+          >
+            <h2
+              style={{
+                color: "#856404",
+                fontSize: "20px",
+                fontWeight: "600",
+                marginBottom: "20px",
+              }}
+            >
+              Notifications
+            </h2>
 
             {notifications.map((notif) => (
               <div
                 key={notif._id}
                 style={{
-                  backgroundColor: "white",
-                  padding: 12,
-                  borderRadius: 8,
-                  marginBottom: 10,
-                  boxShadow: "0 0 5px rgba(0,0,0,0.05)",
+                  backgroundColor: CARD_BG,
+                  padding: "16px",
+                  borderRadius: "8px",
+                  marginBottom: "12px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
+                  border: "1px solid #F1F2F6",
                 }}
               >
-                <div>{notif.message}</div>
+                <div style={{ color: TEXT_PRIMARY }}>{notif.message}</div>
                 <button
                   onClick={() => handleMarkNotificationRead(notif._id)}
                   style={{
                     backgroundColor: ORANGE,
                     color: "white",
                     border: "none",
-                    padding: "4px 10px",
-                    borderRadius: 5,
+                    padding: "8px 16px",
+                    borderRadius: "6px",
                     cursor: "pointer",
-                    fontSize: 12,
+                    fontSize: "12px",
+                    fontWeight: "600",
                   }}
                 >
                   Mark Read
                 </button>
               </div>
             ))}
-          </section>
+          </div>
         )}
 
-        {/* Profile + Preferences */}
+        {/* Profile Card */}
         <div
           style={{
-            backgroundColor: "white",
-            borderRadius: 10,
-            boxShadow: "0 0 15px rgba(255,115,0,0.15)",
-            borderLeft: `6px solid ${ORANGE}`,
-            padding: 25,
-            marginBottom: 30,
+            backgroundColor: CARD_BG,
+            borderRadius: "12px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+            padding: "32px",
+            marginBottom: "30px",
             display: "flex",
-            gap: 32,
+            gap: "40px",
+            alignItems: "flex-start",
           }}
         >
-          <div style={{ minWidth: 160, textAlign: "center" }}>
+          <div style={{ textAlign: "center", minWidth: "200px" }}>
             <div
               style={{
-                width: 86,
-                height: 86,
+                width: "80px",
+                height: "80px",
                 borderRadius: "50%",
                 backgroundColor: ORANGE,
                 color: "white",
-                fontSize: 48,
-                fontWeight: "800",
-                lineHeight: "86px",
+                fontSize: "32px",
+                fontWeight: "700",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
                 userSelect: "none",
-                margin: "0 auto 15px",
               }}
             >
               {getInitials(user.firstName, user.lastName)}
             </div>
-            <h3 style={{ margin: 0 }}>
+            <h3
+              style={{
+                margin: "0 0 8px 0",
+                color: TEXT_PRIMARY,
+                fontSize: "20px",
+                fontWeight: "600",
+              }}
+            >
               {user.firstName} {user.lastName}
             </h3>
-            <p style={{ margin: "10px 0", color: "#7f5e00" }}>{user.email}</p>
+            <p
+              style={{
+                margin: "0 0 20px 0",
+                color: TEXT_SECONDARY,
+                fontSize: "14px",
+              }}
+            >
+              {user.email}
+            </p>
             <button
               onClick={() => navigate("/survey")}
               style={{
                 backgroundColor: ORANGE,
                 color: "white",
                 border: "none",
-                borderRadius: 6,
-                padding: "8px 22px",
+                borderRadius: "8px",
+                padding: "12px 24px",
                 fontWeight: "600",
                 cursor: "pointer",
-                marginTop: 12,
+                fontSize: "14px",
               }}
             >
               Edit Survey
             </button>
           </div>
 
-          <div>
-            <h3 style={{ color: ORANGE }}>Your Preferences</h3>
-            <ul
+          <div style={{ flex: 1 }}>
+            <h3
               style={{
-                listStyle: "none",
-                paddingLeft: 20,
-                color: "#7f5e00",
-                fontSize: 16,
+                color: TEXT_PRIMARY,
+                fontSize: "18px",
+                fontWeight: "600",
+                marginBottom: "20px",
               }}
             >
-              <li>
-                <b>Cleanliness:</b> {survey.cleanliness}
-              </li>
-              <li>
-                <b>Sleep Schedule:</b> {survey.sleepSchedule}
-              </li>
-              <li>
-                <b>Diet:</b> {survey.diet}
-              </li>
-              <li>
-                <b>Noise Tolerance:</b> {survey.noiseTolerance}
-              </li>
-              <li>
-                <b>Goal:</b> {survey.goal}
-              </li>
-            </ul>
+              Your Preferences
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+                color: TEXT_SECONDARY,
+              }}
+            >
+              <div>
+                <strong style={{ color: TEXT_PRIMARY }}>Cleanliness:</strong>{" "}
+                {survey.cleanliness}
+              </div>
+              <div>
+                <strong style={{ color: TEXT_PRIMARY }}>Sleep Schedule:</strong>{" "}
+                {survey.sleepSchedule}
+              </div>
+              <div>
+                <strong style={{ color: TEXT_PRIMARY }}>Diet:</strong>{" "}
+                {survey.diet}
+              </div>
+              <div>
+                <strong style={{ color: TEXT_PRIMARY }}>
+                  Noise Tolerance:
+                </strong>{" "}
+                {survey.noiseTolerance}
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <strong style={{ color: TEXT_PRIMARY }}>Goal:</strong>{" "}
+                {survey.goal}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Incoming Connection Requests */}
         {incomingRequests.length > 0 && (
-          <section
+          <div
             style={{
-              backgroundColor: "#f2fff1",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: "6px solid #72a842",
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(114,168,66,0.2)",
+              backgroundColor: LIGHT_GREEN_BG,
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "30px",
+              border: "1px solid #A8E6CF",
             }}
           >
-            <h2 style={{ color: "#4d7e1a", marginBottom: 15 }}>
+            <h2
+              style={{
+                color: SUCCESS_GREEN,
+                fontSize: "20px",
+                fontWeight: "600",
+                marginBottom: "20px",
+              }}
+            >
               Pending Connection Requests
             </h2>
 
@@ -516,23 +647,29 @@ const handleRespondRequest = async (requestId, accept) => {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    backgroundColor: "white",
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                    boxShadow: "0 0 5px rgba(0,0,0,0.05)",
+                    backgroundColor: CARD_BG,
+                    padding: "20px",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    border: "1px solid #F1F2F6",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                    }}
+                  >
                     <div
                       style={{
-                        width: 50,
-                        height: 50,
+                        width: "50px",
+                        height: "50px",
                         borderRadius: "50%",
                         backgroundColor: ORANGE,
                         color: "white",
-                        fontWeight: "800",
-                        fontSize: 24,
+                        fontWeight: "700",
+                        fontSize: "20px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -542,27 +679,38 @@ const handleRespondRequest = async (requestId, accept) => {
                       {getInitials(sender.firstName, sender.lastName)}
                     </div>
                     <div>
-                      <div>
-                        <strong>
-                          {sender.firstName} {sender.lastName}
-                        </strong>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          color: TEXT_PRIMARY,
+                          fontSize: "16px",
+                        }}
+                      >
+                        {sender.firstName} {sender.lastName}
                       </div>
-                      <div style={{ fontSize: 14, color: "#555" }}>{sender.email}</div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: TEXT_SECONDARY,
+                        }}
+                      >
+                        {sender.email}
+                      </div>
                     </div>
                   </div>
-                  <div>
+                  <div style={{ display: "flex", gap: "12px" }}>
                     <button
                       disabled={processingRequests[req._id]}
                       onClick={() => handleRespondRequest(req._id, true)}
                       style={{
-                        backgroundColor: ORANGE,
+                        backgroundColor: SUCCESS_GREEN,
                         color: "white",
                         border: "none",
-                        padding: "6px 14px",
-                        borderRadius: 6,
-                        marginRight: 10,
+                        padding: "10px 20px",
+                        borderRadius: "6px",
                         cursor: "pointer",
                         fontWeight: "600",
+                        fontSize: "14px",
                       }}
                     >
                       Accept
@@ -571,13 +719,14 @@ const handleRespondRequest = async (requestId, accept) => {
                       disabled={processingRequests[req._id]}
                       onClick={() => handleRespondRequest(req._id, false)}
                       style={{
-                        backgroundColor: "#aaa",
-                        color: "black",
+                        backgroundColor: "#95A5A6",
+                        color: "white",
                         border: "none",
-                        padding: "6px 14px",
-                        borderRadius: 6,
+                        padding: "10px 20px",
+                        borderRadius: "6px",
                         cursor: "pointer",
                         fontWeight: "600",
+                        fontSize: "14px",
                       }}
                     >
                       Reject
@@ -586,25 +735,36 @@ const handleRespondRequest = async (requestId, accept) => {
                 </div>
               );
             })}
-          </section>
+          </div>
         )}
 
-        {/* Accepted Matches (from finalMatches) */}
+        {/* Your Matches */}
         {finalMatches.length > 0 && (
-          <section
+          <div
             style={{
-              backgroundColor: "#e1f3d1",
-              borderRadius: 10,
-              padding: 20,
-              borderLeft: "6px solid #4e9940",
-              marginBottom: 30,
-              boxShadow: "0 0 8px rgba(78,153,64,0.2)",
+              backgroundColor: LIGHT_GREEN_BG,
+              borderRadius: "12px",
+              padding: "24px",
+              marginBottom: "30px",
+              border: "1px solid #A8E6CF",
             }}
           >
-            <h2 style={{ color: "#3a8127", marginBottom: 15 }}>Your Matches</h2>
+            <h2
+              style={{
+                color: SUCCESS_GREEN,
+                fontSize: "20px",
+                fontWeight: "600",
+                marginBottom: "20px",
+              }}
+            >
+              Your Matches
+            </h2>
 
             {finalMatches.map((match) => {
-              if (!match.matchedUser || String(match.matchedUser._id) === String(user._id))
+              if (
+                !match.matchedUser ||
+                String(match.matchedUser._id) === String(user._id)
+              )
                 return null;
 
               const other = match.matchedUser;
@@ -616,23 +776,29 @@ const handleRespondRequest = async (requestId, accept) => {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    backgroundColor: "white",
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: 10,
-                    boxShadow: "0 0 5px rgba(0,0,0,0.05)",
+                    backgroundColor: CARD_BG,
+                    padding: "20px",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    border: "1px solid #F1F2F6",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "16px",
+                    }}
+                  >
                     <div
                       style={{
-                        width: 50,
-                        height: 50,
+                        width: "50px",
+                        height: "50px",
                         borderRadius: "50%",
                         backgroundColor: ORANGE,
                         color: "white",
-                        fontWeight: "800",
-                        fontSize: 24,
+                        fontWeight: "700",
+                        fontSize: "20px",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -642,50 +808,70 @@ const handleRespondRequest = async (requestId, accept) => {
                       {getInitials(other.firstName, other.lastName)}
                     </div>
                     <div>
-                      <div>
-                        <strong>
-                          {other.firstName} {other.lastName}
-                        </strong>
+                      <div
+                        style={{
+                          fontWeight: "600",
+                          color: TEXT_PRIMARY,
+                          fontSize: "16px",
+                        }}
+                      >
+                        {other.firstName} {other.lastName}
                       </div>
-                      <div style={{ fontSize: 14, color: "#555" }}>{other.email}</div>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          color: TEXT_SECONDARY,
+                        }}
+                      >
+                        {other.email}
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate(`/moodboard/${match._id}`)}
-                    style={{
-                      backgroundColor: "#4e9940",
-                      color: "white",
-                      border: "none",
-                      padding: "6px 16px",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Go to Moodboard
-                  </button>
-                  <button onClick={() => navigate(`/room-allocation/${match._id}`)} style={{
-                      backgroundColor: ORANGE, color: "white",
-                      border: "none", borderRadius: 6, padding: "6px 14px",
-                      fontWeight: "600", cursor: "pointer",
-                    }}>
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <button
+                      onClick={() => navigate(`/moodboard/${match._id}`)}
+                      style={{
+                        backgroundColor: SUCCESS_GREEN,
+                        color: "white",
+                        border: "none",
+                        padding: "10px 20px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Go to Moodboard
+                    </button>
+                    <button
+                      onClick={() => navigate(`/room-allocation/${match._id}`)}
+                      style={{
+                        backgroundColor: ORANGE,
+                        color: "white",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "10px 20px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        fontSize: "14px",
+                      }}
+                    >
                       Allocate Room
                     </button>
+                  </div>
                 </div>
               );
             })}
-          </section>
+          </div>
         )}
 
-        {/* Top Roommate Matches (from matches) */}
-        <section
+        {/* Top Roommate Matches */}
+        <div
           style={{
-            backgroundColor: "white",
-            borderRadius: 10,
-            padding: 25,
-            boxShadow: `0 0 15px rgba(255, 115, 0, 0.15)`,
-            borderLeft: `6px solid ${ORANGE}`,
-            marginBottom: 30,
+            backgroundColor: CARD_BG,
+            borderRadius: "12px",
+            padding: "32px",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
           }}
         >
           <div
@@ -693,172 +879,232 @@ const handleRespondRequest = async (requestId, accept) => {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 20,
+              marginBottom: "24px",
             }}
           >
-            <h2 style={{ color: ORANGE }}>Top Roommate Matches</h2>
-            <div
-  style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  }}
->
-  <h2 style={{ color: ORANGE }}>Find Roomates</h2>
-  {/* Removed Find Roommates button */}
-</div>
-
+            <h2
+              style={{
+                color: TEXT_PRIMARY,
+                fontSize: "20px",
+                fontWeight: "600",
+                margin: 0,
+              }}
+            >
+              Top Roommate Matches
+            </h2>
+            <button
+              onClick={() => navigate("/survey")}
+              style={{
+                backgroundColor: "transparent",
+                color: ORANGE,
+                border: `2px solid ${ORANGE}`,
+                borderRadius: "8px",
+                padding: "10px 20px",
+                fontWeight: "600",
+                cursor: "pointer",
+                fontSize: "14px",
+              }}
+            >
+              Take Survey
+            </button>
           </div>
 
           <div
             style={{
-              display: "flex",
-              gap: 20,
-              flexWrap: "wrap",
-              justifyContent: matches.length ? "flex-start" : "center",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "24px",
+              justifyItems: matches.length === 0 ? "center" : "stretch",
             }}
           >
-            {matches.length === 0 && (
-              <p style={{ color: "#a46300", fontWeight: "bold" }}>
+            {matches.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px",
+                  color: TEXT_SECONDARY,
+                  fontSize: "16px",
+                }}
+              >
                 No matches yet, please update your survey.
-              </p>
+              </div>
+            ) : (
+              matches.map((match) => {
+                const targetUserId =
+                  match.userId || match._id || (match.user && match.user._id);
+                if (!targetUserId || String(targetUserId) === String(user._id))
+                  return null;
+
+                const matchedConnection = getMatchedConnection(targetUserId);
+                const sent = pendingRequests.includes(targetUserId);
+                const isRejected = rejectedUserIds.has(String(targetUserId));
+                const currentUserMaxedOut = finalMatches.length >= 2;
+                const disableConnect =
+                  !!matchedConnection ||
+                  sent ||
+                  isRejected ||
+                  currentUserMaxedOut;
+
+                const firstName =
+                  match.firstName || (match.user && match.user.firstName) || "";
+                const lastName =
+                  match.lastName || (match.user && match.user.lastName) || "";
+
+                return (
+                  <div
+                    key={targetUserId}
+                    style={{
+                      backgroundColor: "#FAFBFC",
+                      padding: "24px",
+                      borderRadius: "12px",
+                      border: "1px solid #F1F2F6",
+                      textAlign: "center",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "60px",
+                        height: "60px",
+                        borderRadius: "50%",
+                        backgroundColor: ORANGE,
+                        color: "white",
+                        fontSize: "24px",
+                        fontWeight: "700",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginBottom: "16px",
+                        userSelect: "none",
+                      }}
+                    >
+                      {getInitials(firstName, lastName)}
+                    </div>
+
+                    <h3
+                      style={{
+                        margin: "0 0 8px 0",
+                        color: TEXT_PRIMARY,
+                        fontSize: "18px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {firstName} {lastName}
+                    </h3>
+
+                    <p
+                      style={{
+                        margin: "0 0 16px 0",
+                        fontWeight: "700",
+                        color: ORANGE,
+                        fontSize: "16px",
+                      }}
+                    >
+                      Score: {match.compatibilityScore}%
+                    </p>
+
+                    {match.compatibilityReasons && (
+                      <div
+                        style={{
+                          textAlign: "left",
+                          marginBottom: "20px",
+                          width: "100%",
+                        }}
+                      >
+                        {match.compatibilityReasons
+                          .slice(0, 3)
+                          .map((reason, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                fontSize: "13px",
+                                color: TEXT_SECONDARY,
+                                marginBottom: "6px",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "8px",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: SUCCESS_GREEN,
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                •
+                              </span>
+                              <span>{reason}</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {matchedConnection ? (
+                      <button
+                        onClick={() =>
+                          navigate(`/moodboard/${matchedConnection._id}`)
+                        }
+                        style={{
+                          backgroundColor: SUCCESS_GREEN,
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "12px 24px",
+                          cursor: "pointer",
+                          fontWeight: "600",
+                          width: "100%",
+                          fontSize: "14px",
+                        }}
+                      >
+                        Go to Moodboard
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          !disableConnect && handleSendRequest(targetUserId)
+                        }
+                        disabled={disableConnect}
+                        style={{
+                          backgroundColor: disableConnect ? "#BDC3C7" : ORANGE,
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "12px 24px",
+                          cursor: disableConnect ? "not-allowed" : "pointer",
+                          fontWeight: "600",
+                          width: "100%",
+                          fontSize: "14px",
+                          transition: "all 0.2s ease",
+                        }}
+                        title={
+                          disableConnect
+                            ? matchedConnection
+                              ? "Already matched"
+                              : sent
+                                ? "Request already sent"
+                                : isRejected
+                                  ? "You were rejected by this user"
+                                  : currentUserMaxedOut
+                                    ? "You have reached maximum matches"
+                                    : "Unavailable"
+                            : "Send connection request"
+                        }
+                      >
+                        {sent
+                          ? "Request Sent"
+                          : disableConnect
+                            ? "Unavailable"
+                            : "Connect"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })
             )}
-
-         {matches.map((match) => {
-  // Get the unique user ID for this match
-  const targetUserId = match.userId || match._id || (match.user && match.user._id);
-  if (!targetUserId || String(targetUserId) === String(user._id)) return null;
-
-  // Check if already matched
-  const matchedConnection = getMatchedConnection(targetUserId);
-
-  // Check if a request was sent and pending
-  const sent = pendingRequests.includes(targetUserId);
-
-  // Check if this user is in rejectedUserIds state (you must define this in your component state)
-  const isRejected = rejectedUserIds.has(String(targetUserId));
-
-  // Check if current user reached max accepted matches (2)
-  const currentUserMaxedOut = finalMatches.length >= 2;
-
-  // Determine if Connect button should be disabled
-  const disableConnect =
-    !!matchedConnection || sent || isRejected || currentUserMaxedOut;
-
-  // Get names safely
-  const firstName = match.firstName || (match.user && match.user.firstName) || "";
-  const lastName = match.lastName || (match.user && match.user.lastName) || "";
-
-  return (
-    <article
-      key={targetUserId}
-      style={{
-        width: 220,
-        backgroundColor: "#fff7ea",
-        padding: 15,
-        borderRadius: 10,
-        boxShadow: "0 0 8px rgba(0, 0, 0, 0.03)",
-        userSelect: "none",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 60,
-          height: 60,
-          borderRadius: "50%",
-          backgroundColor: ORANGE,
-          color: "white",
-          fontSize: 32,
-          fontWeight: "800",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          marginBottom: 15,
-          userSelect: "none",
-        }}
-      >
-        {getInitials(firstName, lastName)}
-      </div>
-      <h3 style={{ margin: 0, marginBottom: 10, color: "#ad6c02" }}>
-        {firstName} {lastName}
-      </h3>
-     <p style={{ margin: 0, marginBottom: 12, fontWeight: "700", color: "#b47900" }}>
-  Score: {match.compatibilityScore}%
-</p>
-{match.compatibilityReasons && (
-  <ul
-    style={{
-      listStyle: "none",
-      paddingLeft: 20,
-      marginBottom: 20,
-      fontSize: 14,
-      color: "#7f5e00",
-    }}
-  >
-    {match.compatibilityReasons.map((r, i) => (
-      <li key={i}>• {r}</li>
-    ))}
-  </ul>
-)}
-
-
-      {matchedConnection ? (
-        <button
-          onClick={() => navigate(`/moodboard/${matchedConnection._id}`)}
-          style={{
-            backgroundColor: "#4e9940",
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            padding: "8px 16px",
-            cursor: "pointer",
-            fontWeight: "600",
-            width: "100%",
-          }}
-        >
-          Go to Moodboard
-        </button>
-      ) : (
-        <button
-          onClick={() => !disableConnect && handleSendRequest(targetUserId)}
-          disabled={disableConnect}
-          style={{
-            backgroundColor: disableConnect ? "#ccc" : ORANGE,
-            color: "white",
-            border: "none",
-            borderRadius: 6,
-            padding: "8px 16px",
-            cursor: disableConnect ? "not-allowed" : "pointer",
-            fontWeight: "600",
-            width: "100%",
-          }}
-          title={
-            disableConnect
-              ? matchedConnection
-                ? "Already matched"
-                : sent
-                ? "Request already sent"
-                : isRejected
-                ? "You were rejected by this user"
-                : currentUserMaxedOut
-                ? "You have reached maximum matches"
-                : "Unavailable"
-              : "Send connection request"
-          }
-        >
-          {sent ? "Request Sent" : disableConnect ? "Unavailable" : "Connect"}
-        </button>
-      )}
-    </article>
-  );
-})}
-
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );
