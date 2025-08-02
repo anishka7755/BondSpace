@@ -38,8 +38,11 @@ export default function DashboardPage() {
   const navigate = useNavigate();
 
   // Fetch dashboard data
-  useEffect(() => {
-    async function fetchDashboard() {
+  
+    const fetchDashboard=async()=> {
+       setLoading(true);
+  setError("");
+
       try {
         const profileRes = await api.get("/user/profile");
         setUser(profileRes.data);
@@ -137,9 +140,10 @@ export default function DashboardPage() {
       } finally {
         setLoading(false);
       }
-    }
-    fetchDashboard();
-  }, []);
+    };
+     useEffect(() => {
+  fetchDashboard();
+}, []);
 
   // New effect: fetch room allocations for accepted matches
   useEffect(() => {
@@ -210,6 +214,21 @@ export default function DashboardPage() {
     if (!first && !last) return "";
     return (first?.[0] ?? "") + (last?.[0] ?? "");
   };
+const handleRematch = async (matchId) => {
+  if (!window.confirm("Are you sure you want to rematch? This will remove your existing match.")) {
+    return;
+  }
+
+  try {
+    const res = await api.post(`/connection-requests/${matchId}/rematch`);
+    alert(res.data.message || "Rematch successful.");
+
+    // Refresh dashboard data (re-fetch matches and finalMatches)
+    await fetchDashboard();
+  } catch (error) {
+    alert(error.response?.data?.message || "Failed to process rematch.");
+  }
+};
 
   const handleSendRequest = async (userId) => {
     if (pendingRequests.includes(userId)) return;
@@ -937,7 +956,24 @@ export default function DashboardPage() {
                       >
                         Allocate Room
                       </button>
+                      
                     )}
+                     <button
+        onClick={() => handleRematch(match._id)}
+        style={{
+          backgroundColor: "#d9534f",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          padding: "6px 16px",
+          cursor: "pointer",
+          fontWeight: "600",
+        }}
+        aria-label="Request rematch"
+        title="End this match and find new roommates"
+      >
+        Rematch
+      </button>
                   </div>
                 </div>
               );
