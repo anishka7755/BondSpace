@@ -1,13 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>README - BondSpace : Roommate Matching Project</title>
-</head>
-<body>
-
-  <h1>AI-Powered Personalized Roommate Matching for Women’s Co-Living Spaces</h1>
+<h1> BondSpace : AI-Powered Personalized Roommate Matching for Women’s Co-Living Spaces</h1>
 
   <h2>Project Overview</h2>
   <p>
@@ -19,9 +10,9 @@
     <li><strong>Team Name:</strong> Huntrix</li>
     <li><strong>Members:</strong>
       <ul>
-        <li>[Anishka Verma] 
-        <li>[Advika Tiwari] 
-        <li>[Swati Shah] 
+        <li>Anishka Verma
+        <li>Advika Tiwari 
+        <li>Swati Shah
       </ul>
     </li>
   </ul>
