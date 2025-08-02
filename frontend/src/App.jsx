@@ -114,7 +114,12 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/room-allocation/:matchId" element={ <ProtectedRoute><RoomAllocationPage /></ProtectedRoute>} />
+              <Route
+               path="/room-allocation/:matchId" 
+               element={
+                 <ProtectedRoute>
+                  <RoomAllocationPage />
+                  </ProtectedRoute>} />
               <Route
                 path="/profile"
                 element={
