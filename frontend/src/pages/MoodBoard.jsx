@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 import api from "../api/api";
+
+const REFRESH_INTERVAL = 10000; // in ms
 
 const Moodboard = () => {
   const { matchId } = useParams();
@@ -107,75 +109,65 @@ const Moodboard = () => {
     },
   ]);
 
-  // Fetch moodboard data
-  useEffect(() => {
-    async function fetchMoodboard() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await api.get(`/moodboard/${matchId}`);
-        const { moodboard, items, comments, currentUserId } = response.data;
+  // Fetch moodboard data (useCallback for stable interval)
+  const fetchMoodboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(`/moodboard/${matchId}`);
+      const { moodboard, items, comments, currentUserId } = response.data;
 
-        const roomies = moodboard.users.map((u) => ({
+      setRoommates(
+        moodboard.users.map((u) => ({
           _id: u._id,
           firstName: u.firstName,
           lastName: u.lastName,
           email: u.email,
           isYou: u._id === currentUserId,
-        }));
-        setRoommates(roomies);
+        }))
+      );
 
-        setMoodboardItems(
-          items.map((item) => ({
-            id: item._id,
-            type: item.type,
-            title: item.title || "",
-            content: item.content,
-            description: item.description || "",
-            image: item.image || null,
-            author: item.owner.firstName + " " + item.owner.lastName,
-            authorId: item.owner._id,
-            likes: item.likes.length,
-            likedByUser: item.likes.some((id) => id === currentUserId),
-            timestamp: new Date(item.createdAt).toLocaleString(),
-          }))
-        );
+      setMoodboardItems(
+        items.map((item) => ({
+          id: item._id,
+          type: item.type,
+          title: item.title || "",
+          content: item.content,
+          description: item.description || "",
+          image: item.image || null,
+          author: item.owner.firstName + " " + item.owner.lastName,
+          authorId: item.owner._id,
+          likes: item.likes.length,
+          likedByUser: item.likes.some((id) => id === currentUserId),
+          timestamp: new Date(item.createdAt).toLocaleString(),
+        }))
+      );
 
-        const commentsGrouped = {};
-        for (const comment of comments) {
-          const iid = comment.itemId;
-          if (!commentsGrouped[iid]) commentsGrouped[iid] = [];
-          commentsGrouped[iid].push({
-            id: comment._id,
-            author: comment.author.firstName + " " + comment.author.lastName,
-            content: comment.text,
-            timestamp: new Date(comment.createdAt).toLocaleString(),
-          });
-        }
-        setCommentsByItem(commentsGrouped);
-      } catch (err) {
-        setError(err.response?.data?.message || err.message);
-      } finally {
-        setLoading(false);
+      const commentsGrouped = {};
+      for (const comment of comments) {
+        const iid = comment.itemId;
+        if (!commentsGrouped[iid]) commentsGrouped[iid] = [];
+        commentsGrouped[iid].push({
+          id: comment._id,
+          author: comment.author.firstName + " " + comment.author.lastName,
+          content: comment.text,
+          timestamp: new Date(comment.createdAt).toLocaleString(),
+        });
       }
+      setCommentsByItem(commentsGrouped);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message);
+    } finally {
+      setLoading(false);
     }
-    fetchMoodboard();
   }, [matchId]);
 
-  const getIcon = (type) => {
-    switch (type) {
-      case "image":
-        return ImageIcon;
-      case "note":
-        return Type;
-      case "link":
-        return Link2;
-      case "expense":
-        return DollarSign;
-      default:
-        return Plus;
-    }
-  };
+  // Live polling: fetch initial & every 10s
+  useEffect(() => {
+    fetchMoodboard();
+    const interval = setInterval(fetchMoodboard, REFRESH_INTERVAL);
+    return () => clearInterval(interval);
+  }, [fetchMoodboard]);
 
   const startAddingItem = (type) => {
     setNewItemType(type);
@@ -199,6 +191,7 @@ const Moodboard = () => {
     setExpenseSplitWith([]);
   };
 
+  // Use fetchMoodboard after POST to ensure sync
   const handleAddNote = async () => {
     if (!newNoteContent.trim()) {
       alert("Note content cannot be empty");
@@ -210,29 +203,8 @@ const Moodboard = () => {
         title: newNoteTitle.trim(),
         content: newNoteContent.trim(),
       };
-      const response = await api.post(`/moodboard/${matchId}`, payload);
-      const item = response.data;
-      setMoodboardItems((items) => [
-        {
-          id: item._id,
-          type: item.type,
-          title: item.title || "",
-          content: item.content,
-          description: item.description || "",
-          image: item.image || null,
-          author:
-            roommates.find((u) => u._id === item.owner)?.firstName +
-              " " +
-              roommates.find((u) => u._id === item.owner)?.lastName ||
-            "Uploader",
-          authorId: item.owner,
-          likes: item.likes?.length || 0,
-          likedByUser: false,
-          timestamp: new Date(item.createdAt).toLocaleString(),
-        },
-        ...items,
-      ]);
-      setCommentsByItem((c) => ({ ...c, [item._id]: [] }));
+      await api.post(`/moodboard/${matchId}`, payload);
+      await fetchMoodboard();
       cancelAdding();
     } catch (err) {
       alert(err.response?.data?.message || err.message);
@@ -250,35 +222,11 @@ const Moodboard = () => {
       const formData = new FormData();
       formData.append("image", selectedImage);
 
-      const response = await api.post(`/moodboard/${matchId}/image`, formData);
-
-      const item = response.data;
-      const authorUser = roommates.find(
-        (u) => String(u._id) === String(item.owner)
-      );
-      const author = authorUser
-        ? `${authorUser.firstName} ${authorUser.lastName}`
-        : "Uploader";
-
-      setMoodboardItems((items) => [
-        {
-          id: item._id,
-          type: item.type,
-          title: item.title || "",
-          content: item.content,
-          description: item.description || "",
-          author,
-          authorId: item.owner,
-          likes: item.likes?.length || 0,
-          likedByUser: false,
-          timestamp: new Date(item.createdAt).toLocaleString(),
-        },
-        ...items,
-      ]);
+      await api.post(`/moodboard/${matchId}/image`, formData);
+      await fetchMoodboard();
       setSelectedImage(null);
       cancelAdding();
     } catch (err) {
-      console.error("Image upload failed:", err);
       alert(
         err.response?.data?.message || err.message || "Failed to upload image"
       );
@@ -291,7 +239,6 @@ const Moodboard = () => {
       alert("Please enter a URL");
       return;
     }
-
     try {
       const payload = {
         type: "link",
@@ -299,30 +246,8 @@ const Moodboard = () => {
         content: newNoteContent.trim(),
         description: newNoteDesc.trim(),
       };
-      const response = await api.post(`/moodboard/${matchId}`, payload);
-      const item = response.data;
-
-      setMoodboardItems((items) => [
-        {
-          id: item._id,
-          type: item.type,
-          title: item.title || "",
-          content: item.content,
-          description: item.description || "",
-          image: item.image || null,
-          author:
-            roommates.find((u) => u._id === item.owner)?.firstName +
-              " " +
-              roommates.find((u) => u._id === item.owner)?.lastName ||
-            "Uploader",
-          authorId: item.owner,
-          likes: item.likes?.length || 0,
-          likedByUser: false,
-          timestamp: new Date(item.createdAt).toLocaleString(),
-        },
-        ...items,
-      ]);
-      setCommentsByItem((c) => ({ ...c, [item._id]: [] }));
+      await api.post(`/moodboard/${matchId}`, payload);
+      await fetchMoodboard();
       cancelAdding();
     } catch (err) {
       alert(err.response?.data?.message || err.message);
@@ -334,7 +259,6 @@ const Moodboard = () => {
       alert("Please fill in expense title and amount");
       return;
     }
-
     const newExpense = {
       id: `exp_${Date.now()}`,
       title: newNoteTitle.trim(),
@@ -348,22 +272,14 @@ const Moodboard = () => {
       splitWith: expenseSplitWith,
       yourShare: parseFloat(expenseAmount) / (expenseSplitWith.length + 1),
     };
-
     setMockExpenses((prev) => [newExpense, ...prev]);
     cancelAdding();
   };
 
   const toggleLikeItem = async (itemId) => {
     try {
-      const response = await api.post(`/moodboard/item/${itemId}/like`);
-      const { liked, likesCount } = response.data;
-      setMoodboardItems((items) =>
-        items.map((item) =>
-          item.id === itemId
-            ? { ...item, likedByUser: liked, likes: likesCount }
-            : item
-        )
-      );
+      await api.post(`/moodboard/item/${itemId}/like`);
+      await fetchMoodboard();
     } catch (err) {
       alert(err.response?.data?.message || err.message);
     }
@@ -373,7 +289,7 @@ const Moodboard = () => {
     if (!window.confirm("Are you sure you want to delete this item?")) return;
     try {
       await api.delete(`/moodboard/item/${itemId}`);
-      setMoodboardItems((items) => items.filter((item) => item.id !== itemId));
+      await fetchMoodboard();
       setCommentsByItem((comments) => {
         const copy = { ...comments };
         delete copy[itemId];
@@ -404,6 +320,8 @@ const Moodboard = () => {
     0
   );
   const totalAmount = mockExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+  // RENDER CARD COMPONENTS
 
   const renderLinkItem = (item) => (
     <div
@@ -501,30 +419,17 @@ const Moodboard = () => {
   const renderImageItem = (item) => (
     <div
       key={item.id}
-      className="bg-white border border-gray-100 rounded-lg p-3 shadow-sm hover:shadow-md transition-all duration-200"
+      className="bg-white border border-gray-100 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col"
     >
-      <div className="flex justify-between items-center mb-3">
-        <span className="text-gray-800 font-medium text-sm">Photo</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() =>
-            setOpenMenuFor(openMenuFor === item.id ? null : item.id)
-          }
-          className="text-gray-400 hover:text-gray-600 hover:bg-gray-50 p-1 h-auto"
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
-      </div>
-      <div className="bg-gray-50 rounded-lg p-2 mb-3">
+      <div className="w-full aspect-square bg-gray-50 flex items-center justify-center">
         <img
           src={item.content}
           alt={item.title}
-          className="w-full h-24 object-cover rounded"
+          className="w-full h-full object-cover"
         />
       </div>
-      <div className="flex items-center justify-between">
-        <span className="text-gray-500 text-xs">{item.author}</span>
+      <div className="flex items-center justify-between p-2">
+        <span className="text-gray-500 text-xs truncate">{item.author}</span>
         <Button
           variant="ghost"
           size="sm"
@@ -820,7 +725,7 @@ const Moodboard = () => {
                 Notes ({groupedItems.notes.length})
               </h3>
               {groupedItems.notes.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3 h-[calc(100%-4rem)] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {groupedItems.notes.map(renderNoteItem)}
                 </div>
               ) : (
@@ -949,7 +854,7 @@ const Moodboard = () => {
                   <ImageIcon className="w-4 h-4 text-gray-500" />
                   Photos ({groupedItems.images.length})
                 </h3>
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {groupedItems.images.map(renderImageItem)}
                 </div>
               </div>
