@@ -283,6 +283,56 @@ router.get("/rejected", authMiddleware, async (req, res) => {
   }
 });
 
+router.post("/:matchId/rematch", authMiddleware, async (req, res) => {
+  const userId = String(req.user.id);
+  const { matchId } = req.params;
+
+  try {
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return res.status(404).json({ message: "Match not found." });
+    }
+
+    // Check if current user is part of the match
+    if (String(match.user1Id) !== userId && String(match.user2Id) !== userId) {
+      return res.status(403).json({ message: "You are not authorized to rematch this connection." });
+    }
+
+    // Identify the other user
+    const otherUserId = String(match.user1Id) === userId ? String(match.user2Id) : String(match.user1Id);
+
+    // Start transaction to safely delete match and connection requests
+    const session = await Match.startSession();
+    session.startTransaction();
+
+    try {
+      // Remove match
+      await Match.deleteOne({ _id: matchId }).session(session);
+
+      // Remove accepted connection requests between these two users
+      await ConnectionRequest.deleteMany({
+        status: "accepted",
+        $or: [
+          { senderUserId: userId, receiverUserId: otherUserId },
+          { senderUserId: otherUserId, receiverUserId: userId },
+        ],
+      }).session(session);
+
+     
+      await session.commitTransaction();
+      session.endSession();
+
+      return res.json({ message: "Rematch initiated. Your match has been removed." });
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+  } catch (err) {
+    console.error("Error in rematch API:", err);
+    res.status(500).json({ message: "Server error during rematch process." });
+  }
+});
 
 // Get unread notifications for current user
 router.get("/notifications", authMiddleware, async (req, res) => {

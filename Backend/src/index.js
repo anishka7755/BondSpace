@@ -1,9 +1,11 @@
 import express from "express";
+import path from 'path';
 import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import { Server as IOServer } from "socket.io";
+import { fileURLToPath } from 'url';
 
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
@@ -20,12 +22,15 @@ import finalmatchRoutes from './routes/finalmatch.route.js';
 dotenv.config();
 
 const app = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    credentials: true,
-  })
+    origin: allowedOrigin,
+    credentials: true,
+  })
 );
 app.use(express.json());
 
@@ -65,7 +70,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO server
 const io = new IOServer(server, {
   cors: {
-    origin: "http://localhost:5173", 
+    origin: allowedOrigin, 
     methods: ["GET", "POST"],
     credentials: true,
   },
