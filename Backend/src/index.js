@@ -22,10 +22,7 @@ import finalmatchRoutes from './routes/finalmatch.route.js';
 dotenv.config();
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigin =  "http://localhost:5173";
 app.use(
   cors({
     origin: allowedOrigin,
