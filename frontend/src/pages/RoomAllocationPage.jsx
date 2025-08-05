@@ -13,7 +13,7 @@ const SUCCESS_GREEN = "#27AE60";
 const ERROR_RED = "#E74C3C";
 const LIGHT_GREEN_BG = "#E8F5E8";
 const LIGHT_RED_BG = "#FADBD8";
-const SOCKET_SERVER_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const SOCKET_SERVER_URL = import.meta.env.REACT_APP_API_URL || "http://localhost:5000/api";
 const socket = io(SOCKET_SERVER_URL);
 
 export default function RoomAllocationPage() {
