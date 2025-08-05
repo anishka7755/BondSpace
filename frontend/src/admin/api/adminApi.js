@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const instance = axios.create({
-  baseURL: import.meta.env.REACT_APP_API_URL || "http://localhost:5000/api", // Adjust to your backend URL
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api", // Adjust to your backend URL
 });
 
 // Attach token if present

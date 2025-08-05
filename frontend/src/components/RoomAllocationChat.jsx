@@ -5,7 +5,7 @@ const ORANGE = "#ff7300";
 const THEIRS_BG = "#8346d6";
 const RECEIVER_COLOR = "#fff";
 const SENDER_COLOR = "#fff";
-const SOCKET_SERVER_URL = import.meta.env.REACT_APP_API_URL || "http://localhost:5000/api";
+const SOCKET_SERVER_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 // Key for sessionStorage
 const SESSION_STORAGE_KEY = "roomAllocationChatMessages";
