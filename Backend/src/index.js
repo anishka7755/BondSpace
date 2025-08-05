@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import http from "http";
 import { Server as IOServer } from "socket.io";
-import { fileURLToPath } from 'url';
 
 import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
@@ -76,7 +75,13 @@ const server = http.createServer(app);
 // Initialize Socket.IO server
 const io = new IOServer(server, {
   cors: {
-    origin: allowedOrigin,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigin.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by Socket.IO CORS"));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true,
   }
