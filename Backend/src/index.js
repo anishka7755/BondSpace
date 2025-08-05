@@ -22,12 +22,21 @@ import finalmatchRoutes from './routes/finalmatch.route.js';
 dotenv.config();
 
 const app = express();
-const allowedOrigin =  "http://localhost:5173";
+const allowedOrigin =[
+  "http://localhost:5173",
+  "https://bondspacefrontend.vercel.app/",
+];
 app.use(
   cors({
-    origin: allowedOrigin,
-    credentials: true,
-  })
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigin.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+  })
 );
 app.use(express.json());
 
@@ -67,12 +76,11 @@ const server = http.createServer(app);
 // Initialize Socket.IO server
 const io = new IOServer(server, {
   cors: {
-    origin: allowedOrigin, 
+    origin: allowedOrigin,
     methods: ["GET", "POST"],
     credentials: true,
-  },
+  }
 });
-
 // Socket.IO connection handler
 io.on("connection", (socket) => {
 
