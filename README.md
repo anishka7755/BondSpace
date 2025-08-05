@@ -33,8 +33,9 @@
     <li><strong>Backend:</strong> Node.js, Express.js</li>
     <li><strong>Database:</strong> MongoDB (Mongoose)</li>
     <li><strong>Voice AI:</strong> Omnidim.io</li>
-    <li><strong>Real-Time:</strong> Socket.io (optional)</li>
+    <li><strong>Real-Time:</strong> Socket.io </li>
     <li><strong>Authentication:</strong> JWT, bcrypt</li>
+    <li><strong>File Storage:</strong> Cloudinary</li>
   </ul>
 
   <h2>Architecture &amp; Workflow</h2>
