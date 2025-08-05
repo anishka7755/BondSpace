@@ -66,7 +66,7 @@ const SurveyPage = () => {
             return;
           }
           const response = await fetch(
-            "http://localhost:5000/api/survey/submit",
+            import.meta.env.VITE_API_URL || "http://localhost:5000/api",
             {
               method: "POST",
               headers: {
@@ -104,7 +104,7 @@ const SurveyPage = () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("http://localhost:5000/api/survey/submit", {
+      const response = await fetch(import.meta.env.VITE_API_URL || "http://localhost:5000/api", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

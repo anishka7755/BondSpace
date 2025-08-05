@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import api from "../api/api";
 
-const REFRESH_INTERVAL = 10000; // in ms
+const REFRESH_INTERVAL = 1000000; // in ms
 
 const Moodboard = () => {
   const { matchId } = useParams();
