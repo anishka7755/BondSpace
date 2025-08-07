@@ -21,7 +21,8 @@
   <ul>
     <li><strong>Voice-First Micro-Survey:</strong> Conversational 5-question intake via Omnidim.io to assess compatibility.</li>
     <li><strong>Intelligent Matching Engine:</strong> AI-driven roommate matches with transparent scores and explanations.</li>
-    <li><strong>Smart Room Allocation:</strong> Optimal room assignments based on preferences and availability.</li>
+    <li><strong>Smart Room Allocation:</strong> Optimal room assignments based on preferences and availability along with a real-time chat option available for the users.</li>
+    <li><strong>Roommate Moodboard and Interest Wall:</strong> Collaborative digital space for matched roommates to bond, share inspirations and track expenses.</li>
     <li><strong>Re-Match Option with Feedback:</strong> Supports adaptive re-matching for user comfort.</li>
     <li><strong>Admin Dashboard:</strong> Full visibility and manual override capabilities for admins.</li>
     <li><strong>Privacy and Ethics:</strong> No biased criteria such as race or religion are used in matching.</li>
@@ -33,8 +34,9 @@
     <li><strong>Backend:</strong> Node.js, Express.js</li>
     <li><strong>Database:</strong> MongoDB (Mongoose)</li>
     <li><strong>Voice AI:</strong> Omnidim.io</li>
-    <li><strong>Real-Time:</strong> Socket.io (optional)</li>
+    <li><strong>Real-Time:</strong> Socket.io </li>
     <li><strong>Authentication:</strong> JWT, bcrypt</li>
+    <li><strong>File Storage:</strong> Cloudinary</li>
   </ul>
 
   <h2>Architecture &amp; Workflow</h2>
